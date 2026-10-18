@@ -1,0 +1,5 @@
+config.php
+.env
+*.sqlite
+*.log
+.DS_Store
