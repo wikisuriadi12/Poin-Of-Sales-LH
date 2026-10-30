@@ -1,0 +1,8 @@
+---
+# Deploy cPanel (Git Version Control > Deploy HEAD Commit) ke aplikasi POS.
+# config.php dan storage/ tidak ditimpa dan tidak dihapus (tanpa --delete).
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/yayas183/poslh_app/
+    - /bin/mkdir -p $DEPLOYPATH
+    - /usr/bin/rsync -rlt --exclude='.git' --exclude='.cpanel.yml' --exclude='tests' --exclude='README.md' --exclude='config.php' --exclude='storage' ./ $DEPLOYPATH

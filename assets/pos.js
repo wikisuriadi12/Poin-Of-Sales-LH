@@ -1,333 +1,295 @@
-/* Halaman kasir. Semua teks dari server dipasang lewat textContent (bukan innerHTML). */
-(() => {
+(function () {
   'use strict';
-  const app = document.getElementById('app');
-  if (!app) return;
-  const CSRF = app.dataset.csrf;
-  const MOCK = app.dataset.mock === '1';
-  const MERCHANT = app.dataset.merchant || 'Koperasi';
-  const METODE = { tunai: 'Tunai', qris: 'BNI QRIS', saldo: 'Saldo Santri' };
+  var root = document.querySelector('.kp');
+  if (!root) { return; }
+  var cfg = {};
+  try { cfg = JSON.parse(root.getAttribute('data-cfg') || '{}'); } catch (x) {}
+  var qris = cfg.qris || {};
+  function $(s, c) { return (c || document).querySelector(s); }
+  function $$(s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); }
+  function rp(n) { return 'Rp ' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+  function digits(v) { return parseInt(String(v || '').replace(/\D/g, '') || '0', 10); }
+  function fmt(v) { var d = String(v).replace(/\D/g, ''); return d.replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
-  const $ = (s, r = document) => r.querySelector(s);
-  const rp = n => 'Rp ' + Math.round(n).toLocaleString('id-ID');
-  const num = v => Number(String(v).replace(/\D/g, '')) || 0;
-  const fmtInput = n => (n ? n.toLocaleString('id-ID') : '');
+  var form = $('#kp-form'), list = $('#kp-list');
+  var cards = $$('.kp-card'), prod = {};
+  cards.forEach(function (c) {
+    prod[c.dataset.id] = { id: c.dataset.id, nama: c.dataset.nama, kode: c.dataset.kode, harga: +c.dataset.harga, hp: c.dataset.hp === '' || c.dataset.hp == null ? null : +c.dataset.hp, stok: +c.dataset.stok, el: c };
+  });
 
-  function h(tag, attrs, ...kids) {
-    const el = document.createElement(tag);
-    for (const [k, v] of Object.entries(attrs || {})) {
-      if (v === false || v == null) continue;
-      if (k === 'class') el.className = v;
-      else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
-      else el.setAttribute(k, v === true ? '' : v);
-    }
-    for (const kid of kids.flat()) {
-      if (kid == null || kid === false) continue;
-      el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
-    }
-    return el;
+  var cart = {}, diskon = 0, santri = null, metode = 'tunai', kat = '', cari = '', tipe = 'umum';
+  try { var m0 = localStorage.getItem('kp-metode'); if (m0 === 'qris' && qris.aktif) { metode = 'qris'; } if (m0 === 'tunai') { metode = 'tunai'; } } catch (x) {}
+  if (metode === 'tunai' && qris.aktif && !localStorage.getItem('kp-metode')) { metode = 'qris'; }
+
+  function hrg(p) { return tipe === 'pegawai' && p.hp !== null ? p.hp : p.harga; }
+  function subtotal() { var t = 0; Object.keys(cart).forEach(function (id) { t += cart[id] * hrg(prod[id]); }); return t; }
+  function jumlah() { var n = 0; Object.keys(cart).forEach(function (id) { n += cart[id]; }); return n; }
+  function total() { return Math.max(0, subtotal() - diskon); }
+
+  function tambah(id, d) {
+    var p = prod[id]; if (!p) { return; }
+    var q = (cart[id] || 0) + d;
+    if (q > p.stok) { q = p.stok; toast('Stok ' + p.nama + ' hanya ' + p.stok + '.'); }
+    if (q <= 0) { delete cart[id]; } else { cart[id] = q; }
+    if (diskon > subtotal()) { diskon = subtotal(); }
+    render();
   }
-
-  async function api(route, { query = '', body } = {}) {
-    const init = { method: body ? 'POST' : 'GET', headers: { Accept: 'application/json' }, credentials: 'same-origin' };
-    if (body) {
-      init.headers['Content-Type'] = 'application/json';
-      init.headers['X-CSRF-Token'] = CSRF;
-      init.body = JSON.stringify(body);
-    }
-    const res = await fetch('api.php?r=' + route + query, init);
-    let data = null;
-    try { data = await res.json(); } catch (e) { /* respons bukan JSON */ }
-    if (!res.ok || !data || data.ok === false) throw new Error((data && data.error) || 'Permintaan gagal (' + res.status + ').');
-    return data;
+  function toast(msg) {
+    var t = d$('div'); t.className = 'toast err'; t.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:99;background:#fdeae8;color:#8a1f15;padding:10px 16px;border-radius:12px;font:600 13px system-ui';
+    t.textContent = msg; document.body.appendChild(t); setTimeout(function () { t.remove(); }, 2600);
   }
+  function d$(n) { return document.createElement(n); }
 
-  const st = { pondok: 'ikhwan', products: [], santri: [], cat: 'Semua', q: '', cart: new Map(), disc: 0, metode: 'tunai', uang: 0, santriId: 0, busy: false };
-  let pollTimer = null;
-  let tickTimer = null;
-  const byId = id => st.products.find(p => p.id === id);
-
-  function totals() {
-    let sub = 0, count = 0;
-    for (const [id, q] of st.cart) {
-      const p = byId(id);
-      if (p) { sub += p.harga * q; count += q; }
-    }
-    const disc = Math.min(st.disc, sub);
-    return { sub, disc, total: sub - disc, count };
-  }
-
-  /* ---------- Pesan ---------- */
-  function showErr(msg) { const e = $('#err'); e.textContent = msg; e.hidden = false; }
-  function hideErr() { $('#err').hidden = true; }
-
-  /* ---------- Katalog ---------- */
-  function renderChips() {
-    const cats = ['Semua', ...new Set(st.products.map(p => p.kategori))];
-    $('#chips').replaceChildren(...cats.map(c => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(c === st.cat), onclick: () => { st.cat = c; renderChips(); renderGrid(); } }, c)));
-  }
-
-  function renderGrid() {
-    const q = st.q.trim().toLowerCase();
-    const list = st.products.filter(p => (st.cat === 'Semua' || p.kategori === st.cat) && (!q || p.nama.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)));
-    if (!list.length) { $('#grid').replaceChildren(h('p', { class: 'muted' }, 'Tidak ada barang yang cocok.')); return; }
-    $('#grid').replaceChildren(...list.map(p => {
-      const inCart = st.cart.get(p.id) || 0;
-      const low = p.stok <= p.stok_min;
-      const pillClass = p.stok <= 0 ? 'pill st-habis' : (low ? 'pill st-menipis' : 'pill');
-      const label = p.stok <= 0 ? 'Habis' : 'Stok ' + p.stok + (low ? ' · menipis' : '');
-      return h('button', { type: 'button', class: 'card-p' + (inCart ? ' in' : ''), disabled: p.stok <= 0 || inCart >= p.stok, onclick: () => addItem(p.id) },
-        h('span', { class: 'top-row' }, h('span', { class: 'ini' }, p.nama.slice(0, 2).toUpperCase()), inCart ? h('span', { class: 'qty' }, '×' + inCart) : null),
-        h('span', { class: 'nm' }, p.nama),
-        h('span', { class: 'sku' }, p.sku),
-        h('span', { class: 'bottom' }, h('span', { class: 'price' }, rp(p.harga)), h('span', { class: pillClass }, label)));
-    }));
-  }
-
-  async function loadProducts() {
-    try {
-      const { products } = await api('products', { query: '&pondok=' + st.pondok });
-      st.products = products;
-      for (const id of [...st.cart.keys()]) {
-        const p = byId(id);
-        if (!p) st.cart.delete(id);
-        else if (st.cart.get(id) > p.stok) st.cart.set(id, p.stok);
-      }
-      renderChips(); renderGrid(); renderLines(); update();
-    } catch (e) { showErr(e.message); }
-  }
-
-  async function loadSantri() {
-    try { st.santri = (await api('santri', { query: '&pondok=' + st.pondok })).santri; renderPayExtra(); } catch (e) { showErr(e.message); }
-  }
-
-  /* ---------- Keranjang ---------- */
-  function addItem(id) {
-    const p = byId(id);
-    const cur = st.cart.get(id) || 0;
-    if (!p || cur >= p.stok) { showErr('Stok ' + (p ? p.nama : 'barang') + ' tidak cukup.'); return; }
-    hideErr();
-    st.cart.set(id, cur + 1);
-    renderGrid(); renderLines(); update();
-  }
-  function changeQty(id, delta) {
-    const p = byId(id);
-    const next = (st.cart.get(id) || 0) + delta;
-    if (next <= 0) st.cart.delete(id);
-    else if (p && next > p.stok) { showErr('Stok ' + p.nama + ' tidak cukup.'); return; }
-    else st.cart.set(id, next);
-    renderGrid(); renderLines(); update();
-  }
-  function renderLines() {
-    const ul = $('#lines');
-    if (!st.cart.size) { ul.replaceChildren(h('li', { class: 'empty' }, 'Keranjang kosong. Pilih barang dari katalog.')); return; }
-    ul.replaceChildren(...[...st.cart].map(([id, q]) => {
-      const p = byId(id);
-      return h('li', { class: 'ln' },
-        h('span', { class: 'info' }, h('b', {}, p.nama), h('span', {}, rp(p.harga))),
-        h('span', { class: 'step' },
-          h('button', { type: 'button', 'aria-label': 'Kurangi ' + p.nama, onclick: () => changeQty(id, -1) }, '−'),
-          h('span', {}, q),
-          h('button', { type: 'button', 'aria-label': 'Tambah ' + p.nama, onclick: () => changeQty(id, 1) }, '+')),
-        h('span', { class: 'tot' }, rp(p.harga * q)));
-    }));
-  }
-  function resetSale() {
-    st.cart.clear(); st.disc = 0; st.uang = 0; st.santriId = 0;
-    $('#disc').value = '';
-    renderGrid(); renderLines(); renderPayExtra(); update();
-  }
-
-  /* ---------- Pembayaran ---------- */
-  function renderPayExtra() {
-    const box = $('#payextra');
-    if (st.metode === 'tunai') {
-      const input = h('input', { id: 'uang', class: 'field', inputmode: 'numeric', placeholder: '0', autocomplete: 'off', value: fmtInput(st.uang),
-        oninput: e => { st.uang = num(e.target.value); e.target.value = fmtInput(st.uang); update(); } });
-      const quick = [['Uang pas', () => totals().total], ['50.000', () => 50000], ['100.000', () => 100000]].map(([label, fn]) =>
-        h('button', { type: 'button', onclick: () => { st.uang = fn(); input.value = fmtInput(st.uang); update(); } }, label));
-      box.replaceChildren(
-        h('div', { class: 'row' }, h('label', { for: 'uang' }, 'Uang diterima'), input),
-        h('div', { class: 'quick' }, quick),
-        h('div', { class: 'row' }, h('span', {}, 'Kembalian'), h('span', { class: 'out', id: 'change' }, 'Rp 0')));
-    } else if (st.metode === 'qris') {
-      box.replaceChildren(h('p', { class: 'muted' }, 'QR dibuat oleh BNI untuk pesanan ini. Pembeli memindai dengan BNI Mobile Banking atau aplikasi lain yang mendukung QRIS.'));
+  function render() {
+    // kartu
+    cards.forEach(function (c) {
+      var q = cart[c.dataset.id] || 0, b = $('.kp-qty', c);
+      c.classList.toggle('sel', q > 0);
+      b.hidden = q === 0; b.textContent = '×' + q;
+    });
+    // daftar pesanan
+    var ids = Object.keys(cart);
+    if (!ids.length) {
+      list.innerHTML = '<p class="kp-empty">Ketuk barang di sebelah kiri untuk menambah ke pesanan.</p>';
     } else {
-      const sel = h('select', { id: 'santri', 'aria-label': 'Pilih santri', onchange: e => { st.santriId = Number(e.target.value) || 0; update(); } },
-        h('option', { value: '' }, 'Pilih santri'),
-        st.santri.map(s => h('option', { value: s.id, selected: s.id === st.santriId }, s.nama + ' · ' + s.nomor_induk)));
-      box.replaceChildren(sel,
-        h('div', { class: 'row' }, h('span', {}, 'Saldo uang saku'), h('span', { class: 'out', id: 'saldo-now' }, '-')),
-        h('div', { class: 'row' }, h('span', {}, 'Sisa setelah bayar'), h('span', { class: 'out', id: 'saldo-after' }, '-')));
+      list.innerHTML = ids.map(function (id) {
+        var p = prod[id], q = cart[id];
+        return '<div class="kp-it" data-id="' + id + '"><div class="nm">' + esc(p.nama) + '<small>' + rp(hrg(p)) + '</small></div>' +
+          '<button type="button" class="stp" data-d="-1" aria-label="Kurangi">−</button><span class="q">' + q + '</span>' +
+          '<button type="button" class="stp" data-d="1" aria-label="Tambah">+</button><span class="tt">' + rp(hrg(p) * q) + '</span></div>';
+      }).join('');
     }
+    var n = jumlah();
+    $('#kp-n').textContent = n + ' item';
+    $('#kp-sub').textContent = rp(subtotal());
+    $('#kp-total').textContent = rp(total());
+    var dk = $('#kp-disc');
+    dk.textContent = diskon > 0 ? '− ' + rp(diskon) + '  · ubah' : '+ Tambah diskon';
+    dk.classList.toggle('set', diskon > 0);
+    // pelanggan
+    tipe = santri ? 'santri' : (tipe === 'santri' ? 'umum' : tipe);
+    $$('#kp-cust button').forEach(function (b) { b.classList.toggle('on', b.dataset.c === tipe); });
+    $('#kp-c-santri').textContent = santri ? santri.nama.split(' ')[0] : 'Santri';
+    $('#in-pegawai').hidden = tipe !== 'pegawai';
+    // metode
+    $$('#kp-tiles button').forEach(function (b) { b.classList.toggle('on', b.dataset.m === metode); });
+    $('#kp-dompet-l').textContent = santri ? santri.nama.split(' ')[0] : 'Saldo Santri';
+    var lab = { tunai: 'Bayar Tunai', qris: 'Bayar dengan BNI QRIS', dompet: 'Bayar dengan Saldo Santri', hutang: 'Catat sebagai Hutang' };
+    $('#kp-pay-l').textContent = lab[metode];
+    $('#kp-pay-a').textContent = rp(total());
+    $('#kp-pay').disabled = n === 0;
+    // saring katalog
+    var tampil = 0;
+    cards.forEach(function (c) {
+      var ok = (kat === '' || c.dataset.kat === kat) && (cari === '' || c.dataset.cari.indexOf(cari) !== -1);
+      c.hidden = !ok; if (ok) { tampil++; }
+    });
+    var f = $('#kp-foot');
+    f.textContent = 'Menampilkan ' + tampil + ' dari ' + f.dataset.total + ' barang';
+    $('#kp-none').hidden = tampil > 0;
   }
 
-  function update() {
-    const t = totals();
-    $('#subtotal').textContent = rp(t.sub);
-    $('#total').textContent = rp(t.total);
-    $('#count').textContent = t.count + ' item';
-    let ok = t.count > 0 && t.total > 0;
-    if (st.metode === 'tunai') {
-      const c = $('#change');
-      if (c) {
-        if (st.uang >= t.total) { c.textContent = rp(st.uang - t.total); c.classList.remove('bad'); }
-        else { c.textContent = 'Kurang ' + rp(t.total - st.uang); c.classList.add('bad'); }
-      }
-      ok = ok && st.uang >= t.total;
-    } else if (st.metode === 'saldo') {
-      const s = st.santri.find(x => x.id === st.santriId);
-      const now = $('#saldo-now'), after = $('#saldo-after');
-      if (s && now) {
-        now.textContent = rp(s.saldo);
-        const rest = s.saldo - t.total;
-        after.textContent = rest >= 0 ? rp(rest) : 'Saldo kurang ' + rp(-rest);
-        after.classList.toggle('bad', rest < 0);
-        ok = ok && rest >= 0;
-      } else {
-        if (now) { now.textContent = '-'; after.textContent = '-'; after.classList.remove('bad'); }
-        ok = false;
-      }
-    }
-    const btn = $('#pay');
-    btn.disabled = !ok || st.busy;
-    btn.textContent = st.busy ? 'Memproses...' : (t.total > 0 ? 'Bayar ' + rp(t.total) : 'Bayar');
-  }
-
-  async function pay() {
-    if (st.busy) return;
-    hideErr();
-    const t = totals();
-    const body = { pondok: st.pondok, metode: st.metode, diskon: t.disc, items: [...st.cart].map(([product_id, qty]) => ({ product_id, qty })) };
-    if (st.metode === 'tunai') body.uang_diterima = st.uang;
-    if (st.metode === 'saldo') body.santri_id = st.santriId;
-    st.busy = true; update();
-    try {
-      const { order } = await api('checkout', { body });
-      resetSale();
-      if (order.status === 'menunggu') showQris(order); else showReceipt(order);
-      if (st.metode === 'saldo' || order.metode === 'saldo') loadSantri();
-      loadProducts();
-    } catch (e) {
-      showErr(e.message);
-      loadProducts();
-    } finally {
-      st.busy = false; update();
-    }
-  }
-
-  /* ---------- Modal ---------- */
-  function stopTimers() { clearInterval(pollTimer); clearInterval(tickTimer); pollTimer = tickTimer = null; }
-  function openModal(...nodes) {
-    $('#sheet').replaceChildren(...nodes);
-    $('#modal').hidden = false;
-    const first = $('#sheet button');
-    if (first) first.focus();
-  }
-  function closeModal() { stopTimers(); $('#modal').hidden = true; }
-
-  function showQris(order) {
-    stopTimers();
-    const pay = order.pembayaran;
-    const deadline = Date.now() + pay.detik_sisa * 1000;
-    const qrbox = h('div', { class: 'qrbox', role: 'img', 'aria-label': 'Kode QR pembayaran' });
-    const timer = h('p', { class: 'timer' });
-    const status = h('p', { class: 'center muted', 'aria-live': 'polite' }, 'Menunggu pembayaran. Halaman ini diperbarui otomatis.');
-    const actions = [h('button', { type: 'button', class: 'secondary', onclick: cancel }, 'Batalkan pesanan')];
-    if (MOCK) actions.unshift(h('button', { type: 'button', class: 'demo', onclick: simulate }, 'Simulasikan pembayaran diterima (uji)'));
-    openModal(
-      h('h2', {}, 'Bayar dengan BNI QRIS'),
-      h('p', { class: 'center muted' }, MERCHANT + ' · ' + order.nomor),
-      h('p', { class: 'big' }, rp(order.total)),
-      qrbox, timer,
-      MOCK ? h('p', { class: 'center muted' }, 'Mode uji: kode ini bukan QRIS sungguhan dan tidak dapat dipindai untuk membayar.') : null,
-      status,
-      h('div', { class: 'btns', style: 'flex-direction:column' }, actions));
-    if (window.QRCode) new window.QRCode(qrbox, { text: pay.qr_string, width: 200, height: 200, correctLevel: window.QRCode.CorrectLevel.M });
-    else qrbox.append(h('code', {}, pay.qr_string));
-
-    const tick = () => {
-      const s = Math.max(0, Math.round((deadline - Date.now()) / 1000));
-      timer.textContent = 'Berlaku ' + String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-    };
-    tick();
-    tickTimer = setInterval(tick, 1000);
-    const poll = async () => {
-      try {
-        const { order: o } = await api('order', { query: '&nomor=' + encodeURIComponent(order.nomor) });
-        if (o.status === 'lunas') { stopTimers(); showReceipt(o); loadProducts(); }
-        else if (o.status !== 'menunggu') { stopTimers(); showEnded(o); loadProducts(); }
-      } catch (e) { /* coba lagi pada putaran berikutnya */ }
-    };
-    pollTimer = setInterval(poll, 2500);
-
-    async function cancel() {
-      try { await api('cancel', { body: { nomor: order.nomor } }); closeModal(); loadProducts(); }
-      catch (e) { status.textContent = e.message; poll(); }
-    }
-    async function simulate() {
-      try { await api('mock_pay', { body: { nomor: order.nomor } }); poll(); }
-      catch (e) { status.textContent = e.message; }
-    }
-  }
-
-  function showEnded(o) {
-    openModal(
-      h('h2', {}, 'Pesanan ' + o.status),
-      h('p', { class: 'center muted' }, o.nomor + '. Stok barang sudah dikembalikan. Bila pembeli sudah terlanjur membayar, hubungi administrator untuk pengembalian dana.'),
-      h('button', { type: 'button', class: 'primary', onclick: closeModal }, 'Tutup'));
-  }
-
-  function showReceipt(o) {
-    const when = new Date((o.paid_at || o.created_at).replace(' ', 'T'));
-    const rows = o.items.map(i => h('div', { class: 'rl' }, h('span', {}, i.qty + ' × ' + i.nama), h('span', {}, rp(i.subtotal))));
-    const extra = [];
-    if (o.metode === 'tunai') extra.push(h('div', { class: 'rl' }, h('span', {}, 'Tunai'), h('span', {}, rp(o.uang_diterima))), h('div', { class: 'rl' }, h('span', {}, 'Kembalian'), h('span', {}, rp(o.kembalian))));
-    if (o.metode === 'saldo') extra.push(h('div', { class: 'rl' }, h('span', {}, 'Santri'), h('span', {}, o.santri_nama || '-')), h('div', { class: 'rl' }, h('span', {}, 'Sisa saldo'), h('span', {}, rp(o.santri_saldo || 0))));
-    openModal(
-      h('h2', {}, 'Pembayaran diterima'),
-      h('div', { class: 'receipt' },
-        h('div', { class: 'c' }, MERCHANT, h('br'), 'Pondok ' + o.pondok, h('br'), when.toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short' }), h('br'), o.nomor),
-        h('hr'), rows, h('hr'),
-        h('div', { class: 'rl' }, h('span', {}, 'Subtotal'), h('span', {}, rp(o.subtotal))),
-        o.diskon ? h('div', { class: 'rl' }, h('span', {}, 'Diskon'), h('span', {}, '− ' + rp(o.diskon))) : null,
-        h('div', { class: 'rl' }, h('b', {}, 'Total'), h('b', {}, rp(o.total))),
-        h('div', { class: 'rl' }, h('span', {}, 'Metode'), h('span', {}, METODE[o.metode] || o.metode)),
-        extra, h('hr'), h('div', { class: 'c' }, 'Jazakumullahu khairan')),
-      h('div', { class: 'btns' },
-        h('button', { type: 'button', class: 'secondary', onclick: () => window.print() }, 'Cetak struk'),
-        h('button', { type: 'button', class: 'primary', onclick: closeModal }, 'Transaksi baru')));
-  }
-
-  /* ---------- Pemasangan event ---------- */
-  $('#q').addEventListener('input', e => { st.q = e.target.value; renderGrid(); });
-  $('#disc').addEventListener('input', e => { st.disc = num(e.target.value); e.target.value = fmtInput(st.disc); update(); });
-  $('#clear').addEventListener('click', () => { if (st.cart.size) { resetSale(); hideErr(); } });
-  $('#pay').addEventListener('click', pay);
-  $('#methods').addEventListener('click', e => {
-    const b = e.target.closest('[data-m]');
-    if (!b) return;
-    st.metode = b.dataset.m;
-    document.querySelectorAll('#methods [data-m]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.m === st.metode)));
-    hideErr();
-    if (st.metode === 'saldo') loadSantri(); else renderPayExtra();
-    update();
+  // klik kartu, stepper, kosongkan
+  $('#kp-grid').addEventListener('click', function (e) { var c = e.target.closest('.kp-card'); if (c && !c.disabled) { tambah(c.dataset.id, 1); } });
+  list.addEventListener('click', function (e) {
+    var b = e.target.closest('.stp'); if (!b) { return; }
+    tambah(b.closest('.kp-it').dataset.id, parseInt(b.dataset.d, 10));
   });
-  $('#pondok').addEventListener('click', e => {
-    const b = e.target.closest('[data-pondok]');
-    if (!b || b.dataset.pondok === st.pondok) return;
-    const had = st.cart.size > 0;
-    st.pondok = b.dataset.pondok; st.cat = 'Semua'; st.q = ''; $('#q').value = '';
-    document.querySelectorAll('#pondok [data-pondok]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.pondok === st.pondok)));
-    st.cart.clear(); st.disc = 0; st.uang = 0; st.santriId = 0; $('#disc').value = '';
-    renderLines();
-    loadProducts();
-    if (st.metode === 'saldo') loadSantri(); else renderPayExtra();
-    if (had) showErr('Keranjang dikosongkan karena pondok berganti.'); else hideErr();
+  $('#kp-clear').addEventListener('click', function () { cart = {}; diskon = 0; render(); });
+
+  // pencarian & barcode
+  var q = $('#kp-q');
+  q.addEventListener('input', function () { cari = q.value.trim().toLowerCase(); render(); });
+  q.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') { return; }
+    e.preventDefault();
+    var v = q.value.trim().toLowerCase(); if (!v) { return; }
+    var hit = cards.filter(function (c) { return c.dataset.kode.toLowerCase() === v && !c.disabled; })[0];
+    if (!hit) { var vis = cards.filter(function (c) { return !c.hidden && !c.disabled; }); if (vis.length === 1) { hit = vis[0]; } }
+    if (hit) { tambah(hit.dataset.id, 1); q.value = ''; cari = ''; render(); return; }
+    var habis = cards.filter(function (c) { return c.disabled && (c.dataset.kode.toLowerCase() === v || c.dataset.cari.indexOf(v) !== -1); })[0];
+    toast(habis ? habis.dataset.nama + ' ada, tetapi stok Market 0. Isi stok lewat menu Market (Input stok / Tarik dari Gudang).' : 'Barang tidak ditemukan.');
+  });
+  $('#kp-chips').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) { return; }
+    $$('#kp-chips button').forEach(function (x) { x.classList.toggle('on', x === b); });
+    kat = b.dataset.kat; render();
   });
 
-  renderLines();
-  renderPayExtra();
-  update();
-  loadProducts();
+  // jenis pelanggan
+  $('#kp-cust').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) { return; }
+    var c = b.dataset.c;
+    if (c === 'santri') { bukaSantri(); return; }
+    santri = null; tipe = c;
+    if (metode === 'dompet') { metode = 'tunai'; }
+    cards.forEach(function (el) { var p = prod[el.dataset.id], pr = el.querySelector('.kp-pr'); if (pr) { pr.textContent = rp(hrg(p)); } });
+    render();
+    if (c === 'pegawai') { $('#in-pegawai').focus(); }
+  });
+
+  // metode bayar
+  $('#kp-tiles').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || b.disabled) { return; }
+    var m = b.dataset.m;
+    if (m === 'dompet' && (!santri || metode === 'dompet')) { bukaSantri(); return; }
+    metode = m;
+    try { if (m !== 'dompet') { localStorage.setItem('kp-metode', m); } } catch (x) {}
+    render();
+  });
+
+  // dialog helpers
+  function buka(d) { if (d.showModal) { d.showModal(); } else { d.setAttribute('open', ''); } }
+  function tutup(d) { if (d.close) { d.close(); } else { d.removeAttribute('open'); } }
+  $$('.kp-dlg').forEach(function (d) {
+    d.addEventListener('click', function (e) { if (e.target === d || e.target.closest('[data-tutup]')) { tutup(d); } });
+  });
+
+  // diskon
+  var dd = $('#dlg-diskon'), din = $('#in-diskon');
+  $('#kp-disc').addEventListener('click', function () {
+    if (!jumlah()) { toast('Tambahkan barang dulu.'); return; }
+    din.value = diskon ? fmt(diskon) : ''; buka(dd); din.focus();
+  });
+  din.addEventListener('input', function () { din.value = fmt(din.value); });
+  $$('[data-pct]', dd).forEach(function (b) { b.addEventListener('click', function () { din.value = fmt(Math.round(subtotal() * parseInt(b.dataset.pct, 10) / 100)); }); });
+  $('#dk-ok').addEventListener('click', function () { diskon = Math.min(digits(din.value), subtotal()); tutup(dd); render(); });
+  $('#dk-hapus').addEventListener('click', function () { diskon = 0; tutup(dd); render(); });
+  din.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('#dk-ok').click(); } });
+
+  // santri
+  var ds = $('#dlg-santri'), sin = $('#in-santri'), sl = $('#sl-hasil'), tmr = null;
+  function bukaSantri() { sin.value = ''; sl.innerHTML = ''; buka(ds); sin.focus(); }
+  sin.addEventListener('input', function () {
+    clearTimeout(tmr); var v = sin.value.trim();
+    if (v.length < 2) { sl.innerHTML = ''; return; }
+    tmr = setTimeout(function () {
+      fetch(cfg.cari + '&unit=' + encodeURIComponent(cfg.unit) + '&q=' + encodeURIComponent(v), { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (rows) {
+          sl.innerHTML = rows.length ? rows.map(function (r, i) {
+            return '<li><button type="button" data-i="' + i + '"><span><b>' + esc(r.nama) + '</b><small>' + esc(r.nis) + ' · ' + esc(r.kelas) + '</small></span><span class="sal">' + rp(r.saldo) + '</span></button></li>';
+          }).join('') : '<li class="none">Santri tidak ditemukan.</li>';
+          sl._rows = rows;
+        }).catch(function () { sl.innerHTML = '<li class="none">Gagal mencari. Coba lagi.</li>'; });
+    }, 250);
+  });
+  sl.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) { return; }
+    santri = sl._rows[parseInt(b.dataset.i, 10)]; metode = 'dompet'; tutup(ds); render();
+  });
+
+  // pembayaran
+  var db = $('#dlg-bayar'), dbb = $('#dlg-bayar-b');
+  $('#kp-pay').addEventListener('click', function () {
+    if (!jumlah()) { return; }
+    var t = total();
+    if (metode === 'dompet' && !santri) { bukaSantri(); return; }
+    if (metode === 'tunai') {
+      var sug = [t, 20000, 50000, 100000].filter(function (v, i, a) { return v >= t && a.indexOf(v) === i; }).slice(0, 4);
+      dbb.innerHTML = '<h3>Pembayaran tunai</h3><p class="sub">Total yang harus dibayar</p><div class="kp-big">' + rp(t) + '</div>' +
+        '<label class="kp-fl">Uang diterima (Rp)<input id="in-uang" inputmode="numeric" placeholder="0"></label>' +
+        '<div class="kp-quick">' + sug.map(function (v, i) { return '<button type="button" data-u="' + v + '">' + (i === 0 ? 'Uang pas' : fmt(v)) + '</button>'; }).join('') + '</div>' +
+        '<div class="kp-kv" id="kv-kem"><span>Kembalian</span><b>Rp 0</b></div>' +
+        '<div class="kp-dact"><button type="button" class="kp-btn ghost" data-tutup>Batal</button><button type="button" class="kp-btn" id="bt-ok" disabled>Selesaikan</button></div>';
+      var u = $('#in-uang', dbb), ok = $('#bt-ok', dbb), kv = $('#kv-kem', dbb);
+      var hitung = function () { var v = digits(u.value); ok.disabled = v < t; kv.className = 'kp-kv ' + (v >= t ? 'ok' : ''); $('b', kv).textContent = rp(Math.max(0, v - t)); };
+      u.addEventListener('input', function () { u.value = fmt(u.value); hitung(); });
+      $$('[data-u]', dbb).forEach(function (b) { b.addEventListener('click', function () { u.value = fmt(b.dataset.u); hitung(); }); });
+      u.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !ok.disabled) { ok.click(); } });
+      ok.addEventListener('click', function () { kirim({ dibayar: digits(u.value) }); });
+      buka(db); u.focus();
+    } else if (metode === 'hutang') {
+      var nm0 = santri ? santri.nama : ((tipe === 'pegawai' ? ($('#in-pegawai').value || '') : '') || '').trim();
+      dbb.innerHTML = '<h3>Pembelian hutang (bon)</h3><p class="sub">Barang dibawa sekarang, dibayar nanti. Tercatat di Laporan Piutang atas nama pelanggan.</p><div class="kp-big">' + rp(t) + '</div>' +
+        '<label class="kp-fl">Nama pelanggan<input id="in-hnama" maxlength="100" placeholder="Wajib diisi" value="' + esc(nm0) + '"' + (santri ? ' readonly' : '') + '></label>' +
+        '<label class="kp-fl">Jatuh tempo (opsional)<input id="in-htempo" type="date"></label>' +
+        '<div class="kp-dact"><button type="button" class="kp-btn ghost" data-tutup>Batal</button><button type="button" class="kp-btn" id="bt-ok" ' + (nm0 ? '' : 'disabled') + '>Simpan sebagai hutang</button></div>';
+      var hn = $('#in-hnama', dbb), ok3 = $('#bt-ok', dbb);
+      hn.addEventListener('input', function () { ok3.disabled = !hn.value.trim(); });
+      ok3.addEventListener('click', function () { kirim({ hutang: { nama: hn.value.trim(), tempo: $('#in-htempo', dbb).value } }); });
+      buka(db); if (!nm0) { hn.focus(); }
+    } else if (metode === 'qris' && qris.dinamis) {
+      dbb.innerHTML = '<div class="kp-qrbox"><h3>Bayar dengan QRIS</h3><p class="sub" id="dq-sub">Membuat QR...</p><div id="dq-img"></div><div class="kp-big">' + rp(t) + '</div><p class="sub" id="dq-st">Menyiapkan pembayaran...</p></div>' +
+        '<div class="kp-dact"><button type="button" class="kp-btn ghost" data-tutup>Batal</button>' + (qris.simulasi ? '<button type="button" class="kp-btn ghost" id="dq-sim" disabled>Simulasikan lunas</button>' : '') + '</div>';
+      buka(db);
+      var fd = new FormData();
+      fd.append('_csrf', cfg.csrf); fd.append('diskon', diskon); fd.append('santri_id', santri ? santri.id : '');
+      fd.append('pelanggan', santri ? '' : (tipe === 'pegawai' ? 'Pegawai' : 'Umum'));
+      Object.keys(cart).forEach(function (id) { fd.append('qty[' + id + ']', cart[id]); });
+      var st = $('#dq-st', dbb), ref = null;
+      stopPoll();
+      fetch(cfg.qrisBuat, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (x) {
+          if (!x.ok || !x.j.ok) { $('#dq-sub', dbb).textContent = ''; st.textContent = (x.j && x.j.error) || 'Gagal membuat QR.'; return; }
+          ref = x.j.ref;
+          $('#dq-sub', dbb).textContent = x.j.provider === 'simulasi' ? 'Mode simulasi (tidak ada uang sungguhan)' : 'Scan dengan aplikasi bank / e-wallet';
+          var src = x.j.qr_url || qris.img || '';
+          if (src) { $('#dq-img', dbb).innerHTML = '<img src="' + esc(src) + '" alt="QRIS" style="max-width:240px">'; }
+          st.textContent = 'Menunggu pembayaran...';
+          var sim = $('#dq-sim', dbb);
+          if (sim) { sim.disabled = false; sim.addEventListener('click', function () { var f2 = new FormData(); f2.append('_csrf', cfg.csrf); f2.append('simulasi', '1'); fetch(cfg.qrisStatus + '&ref=' + encodeURIComponent(ref), { method: 'POST', body: f2, credentials: 'same-origin' }); }); }
+          pollT = setInterval(function () {
+            fetch(cfg.qrisStatus + '&ref=' + encodeURIComponent(ref), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+              if (j.status === 'lunas') { stopPoll(); st.textContent = 'Pembayaran diterima. Menyimpan...'; kirim({ qris: 1, ref: ref }); }
+              else if (j.status === 'kedaluwarsa' || j.status === 'gagal') { stopPoll(); st.textContent = 'QR ' + (j.status === 'gagal' ? 'gagal/ditolak' : 'kedaluwarsa') + '. Tutup lalu coba lagi.'; }
+            }).catch(function () {});
+          }, 3000);
+        }).catch(function () { st.textContent = 'Gagal menghubungi server.'; });
+      db.addEventListener('close', stopPoll, { once: true });
+    } else if (metode === 'qris') {
+      dbb.innerHTML = '<div class="kp-qrbox"><h3>Bayar dengan BNI QRIS</h3><p class="sub">' + esc(qris.nama || '') + (qris.nmid ? ' · NMID ' + esc(qris.nmid) : '') + '</p>' +
+        (qris.img ? '<img src="' + esc(qris.img) + '" alt="QRIS">' : '') +
+        '<div class="kp-big">' + rp(t) + '</div><p class="sub">Minta pembeli memasukkan nominal tepat di aplikasinya.</p>' +
+        '<label class="kp-chk"><input type="checkbox" id="ck-qris"> <span>Notifikasi pembayaran sudah masuk di aplikasi merchant, dan nominalnya sama dengan total</span></label>' +
+        '<div class="kp-bukti"><button type="button" class="kp-btn ghost" id="bt-foto">Foto bukti notifikasi</button> <span id="nm-foto" class="sub">Belum ada foto</span><img id="pv-foto" alt="" style="display:none;max-width:160px;margin-top:8px;border-radius:8px"></div></div>' +
+        '<div class="kp-dact"><button type="button" class="kp-btn ghost" data-tutup>Batal</button><button type="button" class="kp-btn" id="bt-ok" disabled>Selesaikan</button></div>';
+      var ck = $('#ck-qris', dbb), ok2 = $('#bt-ok', dbb), fb = $('#f-bukti');
+      try { fb.value = ''; } catch (x) {}
+      var cek = function () { ok2.disabled = !(ck.checked && fb.files && fb.files.length); };
+      ck.addEventListener('change', cek);
+      $('#bt-foto', dbb).addEventListener('click', function () { fb.click(); });
+      fb.onchange = function () {
+        var f = fb.files && fb.files[0], pv = $('#pv-foto', dbb);
+        $('#nm-foto', dbb).textContent = f ? 'Foto terlampir' : 'Belum ada foto';
+        if (f && pv) { pv.src = URL.createObjectURL(f); pv.style.display = 'block'; }
+        cek();
+      };
+      ok2.addEventListener('click', function () { kirim({ qris: 1 }); });
+      buka(db);
+    } else {
+      var kurang = santri.saldo < t;
+      dbb.innerHTML = '<h3>Bayar dengan saldo santri</h3><p class="sub">' + esc(santri.nama) + ' · ' + esc(santri.nis) + '</p>' +
+        '<div class="kp-kv"><span>Saldo saat ini</span><b>' + rp(santri.saldo) + '</b></div><div class="kp-kv"><span>Total belanja</span><b>' + rp(t) + '</b></div>' +
+        '<div class="kp-kv ' + (kurang ? 'bad' : 'ok') + '"><span>' + (kurang ? 'Saldo kurang' : 'Sisa saldo') + '</span><b>' + rp(Math.abs(santri.saldo - t)) + '</b></div>' +
+        '<div class="kp-dact"><button type="button" class="kp-btn ghost" id="bt-ganti">Ganti santri</button><button type="button" class="kp-btn" id="bt-ok"' + (kurang ? ' disabled' : '') + '>Selesaikan</button></div>';
+      $('#bt-ok', dbb).addEventListener('click', function () { kirim({}); });
+      $('#bt-ganti', dbb).addEventListener('click', function () { tutup(db); bukaSantri(); });
+      buka(db);
+    }
+  });
+
+  var pollT = null;
+  function stopPoll() { if (pollT) { clearInterval(pollT); pollT = null; } }
+
+  function kirim(x) {
+    $('#f-metode').value = metode;
+    $('#f-diskon').value = diskon;
+    $('#f-santri').value = santri ? santri.id : '';
+    var nm = ($('#in-pegawai').value || '').trim();
+    $('#f-pelanggan').value = santri ? '' : (tipe === 'pegawai' ? 'Pegawai' + (nm ? ': ' + nm : '') : 'Umum');
+    $('#f-tempo').value = '';
+    if (x.hutang) { if (!santri) { $('#f-pelanggan').value = (tipe === 'pegawai' ? 'Pegawai' : 'Umum') + ': ' + x.hutang.nama; } $('#f-tempo').value = x.hutang.tempo || ''; }
+    $('#f-dibayar').value = x.dibayar || 0;
+    $('#f-qris').value = x.qris ? 1 : 0;
+    $('#f-qref').value = x.ref || '';
+    if (metode !== 'qris') { try { $('#f-bukti').value = ''; } catch (e) {} }
+    $('#f-items').innerHTML = Object.keys(cart).map(function (id) { return '<input type="hidden" name="qty[' + id + ']" value="' + cart[id] + '">'; }).join('');
+    form.submit();
+  }
+  form.addEventListener('submit', function (e) { if (!$('#f-items').children.length) { e.preventDefault(); } });
+
+  render();
 })();

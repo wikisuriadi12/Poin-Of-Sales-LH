@@ -1,0 +1,45 @@
+<?php
+Auth::require('gudang.edit');
+$id = (int) in_str('id', '0');
+$b = $id ? Gudang::find($id) : null;
+if ($id && !$b) { redirect('?p=gudang'); }
+$val = $b ?: ['kode' => '', 'nama' => '', 'kategori' => '', 'satuan' => 'pcs', 'harga_beli' => 0, 'harga_jual' => 0, 'harga_pegawai' => '', 'stok_min' => 5];
+$err = [];
+if (is_post()) {
+    csrf_check();
+    [$c, $err] = Gudang::validateBarang($_POST);
+    $val = $c;
+    if (!$err) {
+        try {
+            $nid = Gudang::simpanBarang($c, $id ?: null, Auth::id());
+            $ke = 'gudang';
+            if (!$id && in_str('ke_market') === '1') { Gudang::daftarkanMarket($nid, Auth::id()); $ke = 'ikhwan'; }
+            flash($id ? 'Barang diperbarui.' : ($ke === 'ikhwan' ? 'Barang ditambahkan dan terdaftar di Stok Market. Isi stok lewat "Barang masuk" (Market) atau transfer dari Gudang.' : 'Barang ditambahkan. Isi stok awal lewat "Barang masuk".'));
+            redirect('?p=gudang_item&id=' . $nid . '&lok=' . $ke);
+        } catch (InvalidArgumentException $ex) { $err['kode'] = $ex->getMessage(); }
+    }
+}
+$f = static fn(string $k): string => e((string) ($val[$k] ?? ''));
+$er = static fn(string $k): string => '';
+ob_start(); ?>
+<div class="page-h"><div><h1><?= $id ? 'Ubah barang' : 'Barang baru' ?></h1><p>Katalog dipakai bersama; stok dicatat terpisah di Gudang dan di Market.</p></div></div>
+<?php if ($err): ?><div class="note err"><?php foreach ($err as $m): ?><div><?= e($m) ?></div><?php endforeach; ?></div><?php endif; ?>
+<form method="post" class="card form" autocomplete="off">
+  <?= csrf_field() ?>
+  <fieldset><legend>Data barang</legend>
+    <label>Kode <input name="kode" value="<?= $f('kode') ?>" <?= $id ? 'required' : 'placeholder="Kosongkan = dibuat otomatis (' . e(Gudang::kodeBerikut()) . ')"' ?> style="text-transform:uppercase"><?= $er('kode') ?></label>
+    <label>Nama barang <input name="nama" value="<?= $f('nama') ?>" required><?= $er('nama') ?></label>
+    <label>Kategori <input name="kategori" value="<?= $f('kategori') ?>" list="kat" placeholder="Alat tulis, Makanan, Sabun..."></label>
+    <datalist id="kat"><?php foreach (Gudang::kategori() as $k): ?><option value="<?= e($k) ?>"><?php endforeach; ?></datalist>
+    <label>Satuan <input name="satuan" value="<?= $f('satuan') ?>"></label>
+  </fieldset>
+  <fieldset><legend>Harga &amp; batas stok</legend>
+    <label>Harga beli (modal) <input name="harga_beli" data-rupiah value="<?= $f('harga_beli') ?>" inputmode="numeric"></label>
+    <label>Harga jual umum <input name="harga_jual" data-rupiah value="<?= $f('harga_jual') ?>" inputmode="numeric" required><?= $er('harga_jual') ?></label>
+    <label>Harga pegawai / karyawan <input name="harga_pegawai" data-rupiah value="<?= $f('harga_pegawai') ?>" inputmode="numeric" placeholder="Kosong = sama dengan harga umum"><?= $er('harga_pegawai') ?></label>
+    <label>Batas stok menipis <input name="stok_min" value="<?= $f('stok_min') ?>" inputmode="numeric"></label>
+  </fieldset>
+  <?php if (!$id): ?><label class="chk"><input type="checkbox" name="ke_market" value="1" checked> Langsung tampilkan di Stok Market (stok 0)</label><?php endif; ?>
+  <div class="acts"><button class="btn"><?= icon('check') ?> Simpan</button><a class="btn ghost" href="?p=gudang">Batal</a></div>
+</form>
+<?php render($id ? 'Ubah barang' : 'Barang baru', ob_get_clean());
