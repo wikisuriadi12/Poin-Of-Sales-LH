@@ -105,9 +105,12 @@
     if (e.key !== 'Enter') { return; }
     e.preventDefault();
     var v = q.value.trim().toLowerCase(); if (!v) { return; }
+    cari = v; render();
     var hit = cards.filter(function (c) { return c.dataset.kode.toLowerCase() === v && !c.disabled; })[0];
-    if (!hit) { var vis = cards.filter(function (c) { return !c.hidden && !c.disabled; }); if (vis.length === 1) { hit = vis[0]; } }
+    var vis = cards.filter(function (c) { return !c.hidden && !c.disabled; });
+    if (!hit && vis.length === 1) { hit = vis[0]; }
     if (hit) { tambah(hit.dataset.id, 1); q.value = ''; cari = ''; render(); return; }
+    if (vis.length > 1) { toast('Ditemukan ' + vis.length + ' barang. Klik barang yang ingin ditambahkan.'); return; }
     var habis = cards.filter(function (c) { return c.disabled && (c.dataset.kode.toLowerCase() === v || c.dataset.cari.indexOf(v) !== -1); })[0];
     toast(habis ? habis.dataset.nama + ' ada, tetapi stok Market 0. Isi stok lewat menu Market (Input stok / Tarik dari Gudang).' : 'Barang tidak ditemukan.');
   });

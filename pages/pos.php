@@ -82,7 +82,7 @@ $rail = [
 ob_start(); ?>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
-<link rel="stylesheet" href="assets/pos.css?v=3">
+<link rel="stylesheet" href="assets/pos.css?v=4">
 <div class="kp" data-cfg="<?= e(json_encode($cfg, JSON_UNESCAPED_UNICODE)) ?>">
   <nav class="kp-rail" aria-label="Menu kasir">
     <a class="kp-logo" href="?p=pos" title="<?= e(Settings::get('nama_lembaga')) ?>">LH</a>
@@ -183,5 +183,5 @@ ob_start(); ?>
   <ul class="kp-sl" id="sl-hasil"></ul>
   <div class="kp-dact"><button type="button" class="kp-btn ghost" data-tutup>Tutup</button></div>
 </div></dialog>
-<script src="assets/pos.js?v=9" defer></script>
+<script src="assets/pos.js?v=10" defer></script>
 <?php render('Kasir', ob_get_clean(), 'bare');

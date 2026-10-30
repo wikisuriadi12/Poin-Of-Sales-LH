@@ -83,7 +83,7 @@ ob_start(); ?>
     <thead><tr><th>Waktu</th><th>Jenis</th><th>Unit</th><th class="r">Jumlah</th><th class="r">Stok akhir</th><th>Catatan</th></tr></thead>
     <tbody>
     <?php foreach ($riwayat as $m): ?>
-      <tr><td><?= e(substr($m['created_at'], 0, 16)) ?></td><td data-label="Jenis"><?= e(Gudang::TIPE[$m['tipe']] ?? $m['tipe']) ?></td><td data-label="Unit"><?= e(Domain::UNIT[$m['unit']]) ?></td>
+      <tr><td><?= e(substr($m['created_at'], 0, 16)) ?></td><td data-label="Jenis"><?= e(Gudang::TIPE[$m['tipe']] ?? $m['tipe']) ?></td><td data-label="Unit"><?= e(Pos::LOKASI[$m['unit']] ?? Domain::UNIT[$m['unit']] ?? $m['unit']) ?></td>
         <td class="r" data-label="Jumlah"><b><?= ((int) $m['qty'] > 0 ? '+' : '') . (int) $m['qty'] ?></b></td><td class="r" data-label="Stok akhir"><?= (int) $m['stok_setelah'] ?></td>
         <td data-label="Catatan"><?= e(trim($m['pemasok'] . ' ' . $m['catatan']) ?: '-') ?><?= $m['petugas'] ? ' <small class="mut">&middot; ' . e($m['petugas']) . '</small>' : '' ?></td></tr>
     <?php endforeach; ?>
