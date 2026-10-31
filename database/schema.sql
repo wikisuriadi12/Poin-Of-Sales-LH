@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(50) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   nama VARCHAR(100) NOT NULL,
-  role ENUM('admin','tu','bendahara','pimpinan','kasir','gudang','ustadz','pembina') NOT NULL,
+  role ENUM('admin','tu','bendahara','pimpinan','kasir','kasir2','gudang','ustadz','pembina') NOT NULL,
   unit_akses ENUM('semua','ikhwan','akhwat') NOT NULL DEFAULT 'semua',
   aktif TINYINT(1) NOT NULL DEFAULT 1,
   session_version INT NOT NULL DEFAULT 1,
@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 -- ===== V3: POS, Gudang, Dompet santri =====
 -- Untuk database V1/V2 yang sudah ada: tambah peran baru.
-ALTER TABLE users MODIFY role ENUM('admin','tu','bendahara','pimpinan','kasir','gudang','ustadz','pembina') NOT NULL;
+ALTER TABLE users MODIFY role ENUM('admin','tu','bendahara','pimpinan','kasir','kasir2','gudang','ustadz','pembina') NOT NULL;
 
 CREATE TABLE IF NOT EXISTS barang (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -284,7 +284,7 @@ CREATE TABLE IF NOT EXISTS bank_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ===== V5: Tahfidz, Kehadiran, Perizinan =====
-ALTER TABLE users MODIFY role ENUM('admin','tu','bendahara','pimpinan','kasir','gudang','ustadz','pembina') NOT NULL;
+ALTER TABLE users MODIFY role ENUM('admin','tu','bendahara','pimpinan','kasir','kasir2','gudang','ustadz','pembina') NOT NULL;
 
 CREATE TABLE IF NOT EXISTS hafalan (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
