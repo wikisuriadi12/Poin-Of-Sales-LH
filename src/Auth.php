@@ -24,6 +24,8 @@ final class Auth
         'diskon.bebas' => ['admin'], // selain ini diskon dibatasi Pos::DISKON_MAKS_KASIR
         'gudang.view' => ['admin', 'gudang', 'kasir', 'pimpinan'],
         'gudang.edit' => ['admin', 'gudang'],
+        'barang.tambah' => ['admin', 'gudang', 'kasir'], // kasir: barang baru saja, tanpa harga modal
+        'barang.masuk' => ['admin', 'gudang', 'kasir'], // kasir: hanya ke Market, tunai, tanpa harga beli
         'harga_beli' => ['admin', 'gudang', 'bendahara', 'pimpinan'], // kasir tidak boleh melihat modal/laba
         'dompet' => ['admin', 'kasir', 'bendahara'],
         'dompet.topup' => ['admin', 'bendahara'], // kasir tidak boleh menambah saldo (mencegah saldo fiktif)
