@@ -392,6 +392,20 @@ ok('sesi menganggur >2 jam berakhir', Auth::user() === null && !isset($_SESSION[
 $_SESSION = [];
 (new ReflectionProperty('Auth', 'cache'))->setValue(null, null);
 
+// Level kasir
+$sebagai = static function (int $uid): void { $_SESSION = ['uid' => $uid, 'sv' => 1, 'last' => time()]; (new ReflectionProperty('Auth', 'cache'))->setValue(null, null); };
+$k1 = Auth::createUser('kasir.satu', 'Kasir Satu', 'kasir', 'semua', 'passwordku123', null);
+$k2 = Auth::createUser('kasir.dua', 'Kasir Dua', 'kasir2', 'semua', 'passwordku123', null);
+$sebagai($k1);
+ok('kasir level 1: jual, laporan, piutang, label, tambah stok', Auth::can('pos') && Auth::can('penjualan') && Auth::can('piutang') && Auth::can('gudang.view') && Auth::can('barang.tambah') && Auth::can('barang.masuk'));
+ok('kasir level 1: tanpa modal, dompet, edit gudang', !Auth::can('harga_beli') && !Auth::can('dompet') && !Auth::can('gudang.edit') && !Auth::can('users'));
+$sebagai($k2);
+ok('kasir level 2: jual & laporan penjualan', Auth::can('pos') && Auth::can('penjualan') && Domain::sistemBoleh('pos', 'kasir2'));
+ok('kasir level 2: tanpa piutang, stok, label, barang', !Auth::can('piutang') && !Auth::can('gudang.view') && !Auth::can('barang.tambah') && !Auth::can('barang.masuk') && !Auth::can('dompet'));
+ok('kasir level 2: batal hanya struk sendiri hari ini', Pos::bolehBatal(['user_id' => $k2, 'tanggal' => date('Y-m-d')]) && !Pos::bolehBatal(['user_id' => $k1, 'tanggal' => date('Y-m-d')]) && !Pos::bolehBatal(['user_id' => $k2, 'tanggal' => '2020-01-01']));
+$_SESSION = [];
+(new ReflectionProperty('Auth', 'cache'))->setValue(null, null);
+
 
 echo $fail === 0 ? "\nSemua uji lulus.\n" : "\n$fail uji GAGAL.\n";
 exit($fail === 0 ? 0 : 1);
