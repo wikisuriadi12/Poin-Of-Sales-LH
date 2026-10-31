@@ -6,7 +6,7 @@ $statusF = in_str('status') === 'semua' ? 'semua' : 'belum';
 if (is_post() && $bisaBayar) {
     csrf_check();
     try {
-        Piutang::bayar((int) in_str('piutang_id', '0'), (int) preg_replace('/\D/', '', in_str('jumlah', '0')), in_str('tanggal') ?: date('Y-m-d'), in_str('catatan'), Auth::id());
+        Piutang::bayar((int) in_str('piutang_id', '0'), (int) preg_replace('/\D/', '', in_str('jumlah', '0')), in_str('tanggal') ?: date('Y-m-d'), in_str('catatan'), Auth::id(), in_str('metode'));
         flash('Pembayaran hutang pelanggan dicatat.');
     } catch (InvalidArgumentException $ex) { flash($ex->getMessage(), 'err'); }
     redirect('?p=piutang&n=' . rawurlencode($n) . '&status=' . $statusF);
@@ -47,11 +47,14 @@ ob_start(); ?>
     <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><div><b><?= e($f['no_struk']) ?></b> <small class="mut">&middot; <?= $tgl($f['tanggal']) ?> &middot; tempo <?= $tgl($f['jatuh_tempo']) ?></small> <a class="btn sm ghost" href="?p=struk&amp;id=<?= (int) $f['penjualan_id'] ?>">Struk</a></div><div><?= $badge($f['jatuh_tempo'], $sisa) ?></div></div>
     <div class="mut" style="margin:6px 0">Total <?= rp($f['total']) ?> &middot; dibayar <?= rp($f['dibayar']) ?> &middot; <b>sisa <?= rp($sisa) ?></b></div>
     <details><summary>Barang yang dibeli</summary><ul style="margin:6px 0 0;padding-left:18px"><?php foreach (Piutang::items((int) $f['penjualan_id']) as $it): ?><li><?= e($it['nama']) ?> &times; <?= (int) $it['qty'] ?> = <?= rp($it['subtotal']) ?></li><?php endforeach; ?></ul></details>
-    <?php if ($bisaBayar && $sisa > 0): ?><form method="post" class="inline" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><?= csrf_field() ?><input type="hidden" name="piutang_id" value="<?= (int) $f['id'] ?>"><input type="date" name="tanggal" value="<?= e($hari) ?>" style="width:150px"><input name="jumlah" data-rupiah inputmode="numeric" placeholder="Jumlah (maks <?= e(rp($sisa)) ?>)" required style="width:190px"><input name="catatan" placeholder="Catatan" style="width:150px"><button class="btn sm">Catat bayar</button></form><?php endif; ?>
+    <?php if ($bisaBayar && $sisa > 0): ?><form method="post" class="inline" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><?= csrf_field() ?><input type="hidden" name="piutang_id" value="<?= (int) $f['id'] ?>"><input type="date" name="tanggal" value="<?= e($hari) ?>" style="width:150px"><input name="jumlah" data-rupiah inputmode="numeric" placeholder="Jumlah (maks <?= e(rp($sisa)) ?>)" required style="width:190px"><select name="metode" style="width:120px" aria-label="Cara bayar"><?= options(Piutang::METODE_BAYAR, 'tunai') ?></select><input name="catatan" placeholder="Catatan" style="width:150px"><button class="btn sm">Catat bayar</button></form><?php endif; ?>
   </div>
 <?php endforeach; ?>
 <?php if (!$fk): ?><div class="empty">Tidak ada bon<?= $statusF === 'belum' ? ' yang belum lunas' : '' ?>.</div><?php endif; ?></div>
-<div class="card" style="margin-top:16px"><h2>Riwayat pembayaran</h2><div class="scroll"><table class="rt"><thead><tr><th>Tanggal</th><th>Struk</th><th class="r">Jumlah</th><th>Catatan</th><th>Petugas</th></tr></thead><tbody>
-<?php foreach ($by as $y): ?><tr><td><?= $tgl($y['tanggal']) ?></td><td data-label="Struk"><?= e($y['no_struk']) ?></td><td class="r" data-label="Jumlah"><?= rp($y['jumlah']) ?></td><td data-label="Catatan"><?= e($y['catatan'] ?: '-') ?></td><td data-label="Petugas"><?= e($y['petugas'] ?: '-') ?></td></tr><?php endforeach; ?>
-<?php if (!$by): ?><tr><td colspan="5" class="empty">Belum ada pembayaran.</td></tr><?php endif; ?></tbody></table></div></div>
+<?php $perMetode = []; foreach ($by as $y) { $m = $y['metode'] ?? 'tunai'; $perMetode[$m] = ($perMetode[$m] ?? 0) + (int) $y['jumlah']; } ?>
+<div class="card" style="margin-top:16px"><h2>Riwayat pembayaran</h2>
+<?php if ($perMetode): ?><p class="mut" style="margin:0 0 8px"><?php foreach (Piutang::METODE_BAYAR as $m => $lbl): ?><?= e($lbl) ?>: <b><?= rp($perMetode[$m] ?? 0) ?></b> &nbsp; <?php endforeach; ?></p><?php endif; ?>
+<div class="scroll"><table class="rt"><thead><tr><th>Tanggal</th><th>Struk</th><th class="r">Jumlah</th><th>Cara bayar</th><th>Catatan</th><th>Petugas</th></tr></thead><tbody>
+<?php foreach ($by as $y): ?><tr><td><?= $tgl($y['tanggal']) ?></td><td data-label="Struk"><?= e($y['no_struk']) ?></td><td class="r" data-label="Jumlah"><?= rp($y['jumlah']) ?></td><td data-label="Cara bayar"><?= e(Piutang::METODE_BAYAR[$y['metode'] ?? 'tunai'] ?? ($y['metode'] ?? '-')) ?></td><td data-label="Catatan"><?= e($y['catatan'] ?: '-') ?></td><td data-label="Petugas"><?= e($y['petugas'] ?: '-') ?></td></tr><?php endforeach; ?>
+<?php if (!$by): ?><tr><td colspan="6" class="empty">Belum ada pembayaran.</td></tr><?php endif; ?></tbody></table></div></div>
 <?php render('Hutang ' . $n, ob_get_clean());
