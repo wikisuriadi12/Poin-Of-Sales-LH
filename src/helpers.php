@@ -174,6 +174,44 @@ function csv_out(string $filename, array $header, array $rows): void
     exit;
 }
 
+/** Menu atas aplikasi (semua halaman petugas, termasuk kasir). Isi menu mengikuti hak akses akun. */
+function topnav(string $cur): string
+{
+    $u = Auth::user();
+    if (!$u) { return ''; }
+    $alias = ['struk' => 'penjualan', 'bukti_qris' => 'penjualan', 'gudang_item' => 'gudang', 'barang' => 'gudang'];
+    $cur = $alias[$cur] ?? $cur;
+    $rendah = 0;
+    if (Auth::can('gudang.view')) { try { $rendah = Gudang::jumlahRendah(Pos::TOKO); } catch (Throwable $e) { $rendah = 0; } }
+    $items = [
+        ['pos', 'Kasir', 'cart', Auth::can('pos'), 0],
+        ['penjualan', 'Riwayat', 'clock', Auth::can('penjualan'), 0],
+        ['gudang', 'Stok', 'box', Auth::can('gudang.view'), $rendah],
+        ['barang_masuk', 'Barang masuk', 'plus', Auth::can('barang.masuk'), 0],
+        ['piutang', 'Bon', 'receipt', Auth::can('piutang') || Auth::can('laporan'), 0],
+        ['hutang', 'Hutang supplier', 'wallet', Auth::can('gudang.edit') || Auth::can('laporan'), 0],
+        ['dompet', 'Dompet santri', 'wallet', Auth::can('dompet'), 0],
+        ['label', 'Label', 'tag', Auth::can('gudang.view'), 0],
+        ['laporan_pos', Auth::can('gudang.view') ? 'Laporan' : 'Laporan penjualan', 'bar-chart', Auth::can('penjualan'), 0],
+        ['laporan_stok', 'Laporan stok', 'file-text', Auth::can('gudang.view'), 0],
+        ['impor_stok', 'Impor', 'upload', Auth::can('gudang.edit'), 0],
+        ['akun_pos', 'Akun kasir', 'shield', Auth::can('users'), 0],
+    ];
+    $h = '<header class="tn noprint"><a class="tn-logo" href="?p=' . e(Domain::home('pos', $u['role'])) . '" title="' . e(Settings::get('nama_lembaga')) . '">LH</a><nav class="tn-nav" aria-label="Menu utama">';
+    foreach ($items as [$k, $label, $ic, $boleh, $cnt]) {
+        if (!$boleh) { continue; }
+        $h .= '<a class="tn-i' . ($cur === $k ? ' on' : '') . '" href="?p=' . e($k) . '"' . ($cur === $k ? ' aria-current="page"' : '') . '>' . icon($ic, 18) . '<span>' . e($label) . '</span>'
+            . ($cnt > 0 ? '<b class="tn-cnt" title="Stok menipis">' . (int) $cnt . '</b>' : '') . '</a>';
+    }
+    $h .= '</nav><details class="tn-me"><summary title="' . e($u['nama']) . '" aria-label="Menu akun">' . e(mb_strtoupper(mb_substr($u['nama'], 0, 1))) . '</summary>'
+        . '<div class="tn-menu"><b>' . e($u['nama']) . '</b><small>' . e(Domain::ROLE[$u['role']] ?? $u['role']) . '</small>'
+        . '<a href="?p=akun">' . icon('key', 16) . ' Akun saya</a>'
+        . (Auth::can('users') ? '<a href="?p=db_cek">' . icon('clipboard', 16) . ' Periksa database</a>' : '')
+        . '<button type="button" data-theme-toggle>' . icon('moon', 16) . ' Mode gelap/terang</button>'
+        . '<a href="?p=logout">' . icon('log-out', 16) . ' Keluar</a></div></details></header>';
+    return $h;
+}
+
 /** Bungkus konten dengan layout halaman. $public = tampilan tanpa menu (login, pendaftaran, portal wali). */
 function render(string $title, string $content, $public = false): void
 {
