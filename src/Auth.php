@@ -19,7 +19,9 @@ final class Auth
         'impor' => ['admin', 'tu'],
         'pengaturan' => ['admin'],
         'audit' => ['admin'],
-        'pos' => ['admin', 'kasir'],
+        // kasir = Kasir Level 1 (jual, laporan, piutang, label, tambah stok); kasir2 = Level 2 (jual & laporan penjualan)
+        'pos' => ['admin', 'kasir', 'kasir2'],
+        'piutang' => ['admin', 'kasir'], // mencatat pembayaran bon pelanggan
         'pos.batal' => ['admin', 'bendahara'], // batalkan penjualan siapa pun; kasir hanya miliknya hari ini (Pos::bolehBatal)
         'diskon.bebas' => ['admin'], // selain ini diskon dibatasi Pos::DISKON_MAKS_KASIR
         'gudang.view' => ['admin', 'gudang', 'kasir', 'pimpinan'],
@@ -27,7 +29,7 @@ final class Auth
         'barang.tambah' => ['admin', 'gudang', 'kasir'], // kasir: barang baru saja, tanpa harga modal
         'barang.masuk' => ['admin', 'gudang', 'kasir'], // kasir: hanya ke Market, tunai, tanpa harga beli
         'harga_beli' => ['admin', 'gudang', 'bendahara', 'pimpinan'], // kasir tidak boleh melihat modal/laba
-        'dompet' => ['admin', 'kasir', 'bendahara'],
+        'dompet' => ['admin', 'bendahara'], // bayar dengan saldo di kasir tetap lewat izin pos
         'dompet.topup' => ['admin', 'bendahara'], // kasir tidak boleh menambah saldo (mencegah saldo fiktif)
         'dompet.koreksi' => ['admin', 'bendahara'],
         'tahfidz.view' => ['admin', 'ustadz', 'pembina', 'pimpinan', 'tu'],
@@ -38,7 +40,7 @@ final class Auth
         'izin.edit' => ['admin', 'pembina'],
         'va' => ['admin', 'bendahara', 'pimpinan'],
         'va.edit' => ['admin', 'bendahara'],
-        'penjualan' => ['admin', 'kasir', 'bendahara', 'pimpinan'],
+        'penjualan' => ['admin', 'kasir', 'kasir2', 'bendahara', 'pimpinan'],
     ];
 
     public const IDLE = 7200;

@@ -6,13 +6,13 @@ final class Domain
     public const JENJANG = ['TKQ', 'Ula', 'Wustha', 'Ulya'];
     public const UNIT = ['ikhwan' => 'Ikhwan', 'akhwat' => 'Akhwat'];
     public const STATUS = ['calon' => 'Calon', 'aktif' => 'Aktif', 'nonaktif' => 'Nonaktif', 'lulus' => 'Lulus', 'pindah' => 'Pindah', 'ditolak' => 'Ditolak'];
-    public const ROLE = ['admin' => 'Admin', 'tu' => 'Tata Usaha (data santri)', 'bendahara' => 'Bendahara (SPP)', 'pimpinan' => 'Pimpinan (baca saja)', 'kasir' => 'Kasir koperasi (POS)', 'gudang' => 'Petugas gudang', 'ustadz' => 'Ustadz / Muallim', 'pembina' => 'Pembina asrama (musyrif)'];
+    public const ROLE = ['admin' => 'Admin', 'tu' => 'Tata Usaha (data santri)', 'bendahara' => 'Bendahara (SPP)', 'pimpinan' => 'Pimpinan (baca saja)', 'kasir' => 'Kasir Level 1 (jual, piutang, label, stok masuk)', 'kasir2' => 'Kasir Level 2 (jual & laporan penjualan)', 'gudang' => 'Petugas gudang', 'ustadz' => 'Ustadz / Muallim', 'pembina' => 'Pembina asrama (musyrif)'];
     public const BULAN = [1 => 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
     /** Sistem terpisah: masing-masing punya pintu masuk (login) dan menu sendiri. */
     public const SISTEM = [
         'pendidikan' => ['nama' => 'Sistem Pendidikan', 'desc' => 'Data santri, tahfidz, kehadiran, perizinan, pendaftaran, tagihan SPP, dan laporan untuk TKQ, Ula, Wustha, Ulya.', 'icon' => 'book', 'home' => 'dashboard', 'roles' => ['admin', 'tu', 'bendahara', 'pimpinan', 'ustadz', 'pembina'], 'untuk' => 'Admin, TU, Bendahara, Pimpinan, Ustadz, Pembina'],
-        'pos' => ['nama' => 'LH Mart & Gudang', 'desc' => 'Kasir LH Mart, dompet uang saku santri, penjualan, dan stok gudang yang terhubung otomatis.', 'icon' => 'cart', 'home' => 'pos', 'roles' => ['admin', 'kasir', 'gudang', 'bendahara', 'pimpinan'], 'untuk' => 'Kasir, Petugas gudang, Bendahara, Pimpinan, Admin'],
+        'pos' => ['nama' => 'LH Mart & Gudang', 'desc' => 'Kasir LH Mart, dompet uang saku santri, penjualan, dan stok gudang yang terhubung otomatis.', 'icon' => 'cart', 'home' => 'pos', 'roles' => ['admin', 'kasir', 'kasir2', 'gudang', 'bendahara', 'pimpinan'], 'untuk' => 'Kasir, Petugas gudang, Bendahara, Pimpinan, Admin'],
     ];
 
     /** Halaman milik tiap sistem (dipakai untuk membatasi subdomain). */

@@ -34,7 +34,16 @@ final class Skema
             ['label' => 'stok.unit mengenal Gudang', 'ok' => $enum('stok', 'unit', 'gudang'), 'file' => 'migrasi-gudang-market.sql'],
             ['label' => 'stok_mutasi.unit mengenal Gudang', 'ok' => $enum('stok_mutasi', 'unit', 'gudang'), 'file' => 'migrasi-gudang-market.sql'],
             ['label' => 'stok_mutasi.tipe mengenal transfer', 'ok' => $enum('stok_mutasi', 'tipe', 'transfer_masuk'), 'file' => 'migrasi-gudang-market.sql'],
+            ['label' => 'users.role mengenal Kasir Level 2', 'ok' => $enum('users', 'role', 'kasir2'), 'file' => 'migrasi-kasir-level.sql'],
         ];
+    }
+
+    /** Peran sudah dikenal kolom users.role? (Mode non-strict MySQL menyimpan nilai ENUM tak dikenal sebagai kosong.) */
+    public static function peranAda(string $role): bool
+    {
+        if (Db::pdo()->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'mysql') { return true; }
+        $r = Db::one("SHOW COLUMNS FROM users LIKE 'role'");
+        return $r !== null && stripos((string) ($r['Type'] ?? ''), "'" . $role . "'") !== false;
     }
 
     /** Jalankan semua database/migrasi-*.sql. Galat "sudah ada" diabaikan. @return array{ok:int,gagal:string[]} */
