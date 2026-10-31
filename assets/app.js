@@ -9,13 +9,17 @@
       root.setAttribute('data-theme', next);
       try { localStorage.setItem('theme', next); } catch (x) {}
     }
-    if (e.target.closest('[data-menu]')) { d.body.classList.toggle('menu'); }
-    if (e.target.id === 'scrim') { d.body.classList.remove('menu'); }
+    // Menu akun di menu atas: tutup bila klik di luar
+    d.querySelectorAll('details.tn-me[open]').forEach(function (m) { if (!m.contains(e.target)) { m.removeAttribute('open'); } });
     var cl = e.target.closest('[data-close]');
     if (cl) { cl.parentNode.remove(); }
     var pr = e.target.closest('[data-print]');
     if (pr) { window.print(); }
   });
+
+  // Menu atas: pastikan menu aktif terlihat di layar sempit
+  var aktif = d.querySelector('.tn-i.on');
+  if (aktif && aktif.scrollIntoView) { aktif.scrollIntoView({block: 'nearest', inline: 'center'}); }
 
   // Konfirmasi
   d.addEventListener('submit', function (e) {

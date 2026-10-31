@@ -1,0 +1,19 @@
+/* Menu atas LH Mart: dipakai semua halaman petugas, termasuk kasir. Warna tetap (tidak ikut mode gelap). */
+.tn{--tn-bg:#0a3d2e;--tn-on:#15634b;--tn-ink:#cfe5da;
+  position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:8px;height:56px;padding:0 14px;background:var(--tn-bg);color:#fff;font-family:inherit}
+.tn-logo{flex:none;width:36px;height:36px;border-radius:10px;background:#dcefe3;color:#0a5a41;display:grid;place-items:center;font-weight:800;font-size:15px;text-decoration:none}
+.tn-nav{flex:1;min-width:0;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;margin-left:6px}
+.tn-nav::-webkit-scrollbar{display:none}
+.tn-i{flex:none;display:flex;align-items:center;gap:7px;height:38px;padding:0 12px;border-radius:10px;color:var(--tn-ink);font-size:.86rem;font-weight:600;text-decoration:none;white-space:nowrap}
+.tn-i:hover{background:rgba(255,255,255,.08);color:#fff}
+.tn-i.on{background:var(--tn-on);color:#fff;font-weight:700}
+.tn-cnt{background:#e0a94a;color:#2c1d05;border-radius:99px;font-size:.7rem;padding:1px 7px;font-weight:700}
+.tn-me{flex:none;position:relative}
+.tn-me summary{list-style:none;width:36px;height:36px;border-radius:50%;background:#dcefe3;color:#0a5a41;display:grid;place-items:center;font-weight:800;cursor:pointer}
+.tn-me summary::-webkit-details-marker{display:none}
+.tn-menu{position:absolute;right:0;top:46px;width:230px;background:#fff;color:#10201a;border-radius:14px;box-shadow:0 12px 36px rgba(6,30,20,.25);padding:14px;display:flex;flex-direction:column;gap:2px}
+.tn-menu small{color:#5d6d66;margin-bottom:8px}
+.tn-menu a,.tn-menu button{display:flex;gap:8px;align-items:center;padding:8px 6px;border-radius:8px;font:inherit;font-weight:600;color:inherit;text-decoration:none;background:none;border:0;cursor:pointer;text-align:left}
+.tn-menu a:hover,.tn-menu button:hover{background:#f2fbf6}
+@media (max-width:720px){.tn{padding:0 10px;gap:6px}.tn-i{padding:0 10px;font-size:.82rem}.tn-logo{width:32px;height:32px;font-size:13px}}
+@media print{.tn{display:none!important}}

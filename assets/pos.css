@@ -1,27 +1,12 @@
-/* Kasir LH Mart — mengikuti desain: rel kiri, katalog barang, panel pesanan */
+/* Kasir LH Mart — menu atas (topnav.css), katalog barang, panel pesanan */
 body.is-pub{background:#edf3ef}
-.kp{--rail:#0a3d2e;--rail-on:#15634b;--bg:#edf3ef;--g:#0a6d4e;--g-d:#0a5a41;--g-l:#dff0e6;--g-xl:#f2fbf6;--ink:#10201a;--mut:#5d6d66;--line:#dfe7e3;--card:#fff;
-  display:grid;grid-template-columns:84px minmax(0,1fr) 448px;min-height:100vh;background:var(--bg);color:var(--ink);
+.kp{--tn-h:56px;--bg:#edf3ef;--g:#0a6d4e;--g-d:#0a5a41;--g-l:#dff0e6;--g-xl:#f2fbf6;--ink:#10201a;--mut:#5d6d66;--line:#dfe7e3;--card:#fff;
+  display:grid;grid-template-columns:minmax(0,1fr) 448px;min-height:calc(100vh - var(--tn-h));background:var(--bg);color:var(--ink);
   font:14px/1.4 "Plus Jakarta Sans",Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 .kp *{box-sizing:border-box}
 :where(.kp) button,:where(.kp) input{font:inherit;color:inherit}
 :where(.kp) button{cursor:pointer}
 :where(.kp) a{text-decoration:none;color:inherit}
-
-/* ---- Rel kiri ---- */
-.kp-rail{position:sticky;top:0;height:100vh;background:var(--rail);display:flex;flex-direction:column;align-items:center;padding:20px 0;gap:8px}
-.kp-logo{width:44px;height:44px;border-radius:12px;background:#dcefe3;color:#0a5a41;display:grid;place-items:center;font-weight:800;font-size:17px;margin-bottom:14px}
-.kp-ri{width:64px;height:64px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:rgba(255,255,255,.72);font-size:11px;font-weight:600}
-.kp-ri:hover{background:rgba(255,255,255,.08);color:#fff}
-.kp-ri.on{background:var(--rail-on);color:#fff;font-weight:700}
-.kp-ri .ic{stroke-width:1.9}
-.kp-me{margin-top:auto;position:relative}
-.kp-me summary{list-style:none;width:44px;height:44px;border-radius:50%;background:#dcefe3;color:#0a5a41;display:grid;place-items:center;font-weight:800;font-size:16px;cursor:pointer}
-.kp-me summary::-webkit-details-marker{display:none}
-.kp-menu{position:absolute;left:54px;bottom:0;width:210px;background:#fff;color:var(--ink);border-radius:14px;box-shadow:0 12px 36px rgba(6,30,20,.25);padding:14px;display:flex;flex-direction:column;gap:2px;z-index:30}
-.kp-menu small{color:var(--mut);margin-bottom:8px}
-.kp-menu a{display:flex;gap:8px;align-items:center;padding:8px 6px;border-radius:8px;font-weight:600}
-.kp-menu a:hover{background:var(--g-xl)}
 
 /* ---- Area katalog ---- */
 .kp-main{padding:25px 26px 24px 28px;min-width:0}
@@ -60,7 +45,7 @@ body.is-pub{background:#edf3ef}
 .kp-none{padding:40px 0;text-align:center;color:var(--mut)}
 
 /* ---- Panel pesanan ---- */
-.kp-panel{position:sticky;top:0;height:100vh;background:#fff;border-left:1px solid #e6ede9}
+.kp-panel{position:sticky;top:var(--tn-h);height:calc(100vh - var(--tn-h));background:#fff;border-left:1px solid #e6ede9}
 .kp-panel form{height:100%;display:flex;flex-direction:column;padding:32px 20px 20px}
 .kp-ph{display:flex;align-items:center;gap:10px;margin-bottom:22px}
 .kp-ph h2{margin:0;font-size:22px;font-weight:800;letter-spacing:-.02em;white-space:nowrap}
@@ -131,12 +116,9 @@ body.is-pub{background:#edf3ef}
 .kp-sl .none{padding:14px 4px;color:#7a8781}
 
 /* ---- Responsif ---- */
-@media (max-width:1180px){.kp{grid-template-columns:76px minmax(0,1fr) 392px}.kp-ri{width:58px}.kp-pr{font-size:16px}.kp-grid{gap:12px}.kp-main{padding-left:20px;padding-right:18px}}
+@media (max-width:1180px){.kp{grid-template-columns:minmax(0,1fr) 392px}.kp-pr{font-size:16px}.kp-grid{gap:12px}.kp-main{padding-left:20px;padding-right:18px}}
 @media (max-width:980px){
-  .kp{grid-template-columns:1fr;grid-template-rows:auto auto auto}
-  .kp-rail{position:static;height:auto;flex-direction:row;padding:10px 14px;gap:6px;overflow-x:auto}
-  .kp-logo{margin:0 8px 0 0;flex:none}.kp-ri{width:64px;height:56px;flex:none}
-  .kp-me{margin:0 0 0 auto}.kp-menu{left:auto;right:0;bottom:auto;top:54px}
+  .kp{grid-template-columns:1fr;grid-template-rows:auto auto}
   .kp-panel{position:static;height:auto;border-left:0;border-top:1px solid #dfe7e3}
   .kp-panel form{height:auto;min-height:420px}
   .kp-list{max-height:340px}
