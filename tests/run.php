@@ -195,6 +195,7 @@ ok('callback tanda tangan salah ditolak', $k1 === 403 && QrisApi::status($tm3['r
 [$k2] = QrisApi::callback(json_encode($cb + ['signature_key' => hash('sha512', $tm3['ref'] . '200' . '4000.00' . 'SB-Mid-server-uji')]));
 QrisApi::$http = fn() => [200, json_encode(['transaction_status' => 'pending'])];
 ok('callback sah menandai lunas', $k2 === 200 && QrisApi::status($tm3['ref']) === 'lunas');
+QrisApi::$http = fn($m) => $m === 'POST' ? [200, json_encode(['status_code' => '201', 'actions' => [['name' => 'generate-qr-code', 'url' => 'https://api.sandbox.midtrans.com/v2/qris/y/qr-code']]])] : [200, json_encode(['transaction_status' => 'pending'])];
 $tm4 = QrisApi::mulai(3000, null);
 Settings::set('qris_api_secret', '');
 [$k3] = QrisApi::callback(json_encode(['order_id' => $tm4['ref'], 'status_code' => '200', 'gross_amount' => '3000.00', 'transaction_status' => 'settlement', 'signature_key' => hash('sha512', $tm4['ref'] . '200' . '3000.00')]));
