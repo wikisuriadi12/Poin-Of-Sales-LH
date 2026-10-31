@@ -286,8 +286,11 @@ throws('bayar piutang melebihi sisa ditolak', fn() => Piutang::bayar((int) $pH['
 Piutang::bayar((int) $pH['id'], 1000, date('Y-m-d'), 'cicil', null);
 ok('piutang sebagian', Db::val('SELECT status FROM piutang WHERE id = ?', [$pH['id']]) === 'sebagian' && Piutang::totalSisa() === (int) $pH['total'] - 1000);
 throws('penjualan hutang yang sudah dicicil tidak bisa dibatalkan', fn() => Pos::batalkan($idH, 'uji', null, null));
-Piutang::bayar((int) $pH['id'], (int) $pH['total'] - 1000, date('Y-m-d'), '', null);
+throws('cara bayar bon tak dikenal ditolak', fn() => Piutang::bayar((int) $pH['id'], 500, date('Y-m-d'), '', null, 'cek'));
+Piutang::bayar((int) $pH['id'], (int) $pH['total'] - 1000, date('Y-m-d'), '', null, 'transfer');
 ok('piutang lunas', Db::val('SELECT status FROM piutang WHERE id = ?', [$pH['id']]) === 'lunas' && Piutang::ringkasan() === []);
+$byH = array_column(Piutang::pembayaran('Budi Santoso'), 'metode');
+ok('cara bayar bon tercatat (bawaan cash, lalu transfer)', $byH === ['transfer', 'tunai']);
 $idH2 = Pos::jual('ikhwan', null, [$b1 => 1], 'hutang', 0, null, null, 0, 'Pegawai: Rina');
 ok('hutang pegawai memakai harga pegawai bila ada', (int) Db::val('SELECT total FROM penjualan WHERE id = ?', [$idH2]) > 0);
 Pos::batalkan($idH2, 'uji', null, null);
