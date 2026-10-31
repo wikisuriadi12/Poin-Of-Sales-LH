@@ -195,6 +195,10 @@ ok('callback tanda tangan salah ditolak', $k1 === 403 && QrisApi::status($tm3['r
 [$k2] = QrisApi::callback(json_encode($cb + ['signature_key' => hash('sha512', $tm3['ref'] . '200' . '4000.00' . 'SB-Mid-server-uji')]));
 QrisApi::$http = fn() => [200, json_encode(['transaction_status' => 'pending'])];
 ok('callback sah menandai lunas', $k2 === 200 && QrisApi::status($tm3['ref']) === 'lunas');
+$tm4 = QrisApi::mulai(3000, null);
+Settings::set('qris_api_secret', '');
+[$k3] = QrisApi::callback(json_encode(['order_id' => $tm4['ref'], 'status_code' => '200', 'gross_amount' => '3000.00', 'transaction_status' => 'settlement', 'signature_key' => hash('sha512', $tm4['ref'] . '200' . '3000.00')]));
+ok('callback tanpa Server Key ditolak', $k3 === 503 && QrisApi::status($tm4['ref']) === 'menunggu');
 QrisApi::$http = null; Settings::set('qris_api_provider', ''); Settings::set('qris_api_secret', '');
 // laporan LH Mart
 $lp0 = date('Y-m-d');
@@ -347,6 +351,11 @@ $rkD = Pos::ringkas(date('Y-m-d'), date('Y-m-d'), 'ikhwan');
 Pos::batalkan($pjd, 'uji diskon', null, null);
 ok('batal penjualan berdiskon mengembalikan stok', Gudang::stok($b1, 'ikhwan') === $stokD);
 ok('laba kotor memperhitungkan diskon', $rkD['laba'] === $rk['laba'] + (2 * 2500 - 2 * 1600 - 1000) && $rkD['omzet'] === $rk['omzet'] + (2 * 2500 - 1000));
+throws('diskon kasir di atas batas persen ditolak', fn() => Pos::jual('ikhwan', null, [$b1 => 2], 'tunai', 10000, null, null, 1000, null, null, Pos::DISKON_MAKS_KASIR));
+throws('Pos::hitung menolak diskon di atas batas persen', fn() => Pos::hitung([$b1 => 2], 'Umum', false, 1000, Pos::DISKON_MAKS_KASIR));
+$pjb = Pos::jual('ikhwan', null, [$b1 => 2], 'tunai', 10000, null, null, 750, null, null, Pos::DISKON_MAKS_KASIR);
+ok('diskon kasir tepat di batas diterima', (int) Pos::find($pjb)['diskon'] === 750);
+Pos::batalkan($pjb, 'uji batas diskon', null, null);
 ok('ringkas tidak menghitung yang batal', Pos::ringkas(date('Y-m-d'), date('Y-m-d'), 'ikhwan')['n'] === 1);
 Pos::koreksi($id1, -5000, 'ditarik wali', null, null);
 ok('koreksi saldo', Pos::saldo($id1) === 15000);
