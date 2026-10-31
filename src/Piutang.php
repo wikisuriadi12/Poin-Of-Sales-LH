@@ -4,6 +4,9 @@ declare(strict_types=1);
 /** Piutang pelanggan: pembelian hutang (bon) di kasir, dikelompokkan menurut nama pelanggan. */
 final class Piutang
 {
+    /** Cara pelanggan melunasi bon. */
+    public const METODE_BAYAR = ['tunai' => 'Cash', 'transfer' => 'Transfer'];
+
     /** Nama pelanggan dari isian kasir ("Umum: Budi", "Pegawai: Ani") atau nama santri. */
     public static function namaDari(?string $pelanggan, ?string $namaSantri): string
     {
@@ -68,19 +71,24 @@ final class Piutang
         return Db::all("SELECT b.*, p.nama, j.no_struk, u.nama AS petugas FROM piutang_bayar b JOIN piutang p ON p.id = b.piutang_id JOIN penjualan j ON j.id = p.penjualan_id LEFT JOIN users u ON u.id = b.user_id $w ORDER BY b.id DESC LIMIT 300", $a);
     }
 
-    public static function bayar(int $piutangId, int $jumlah, string $tanggal, string $catatan, ?int $userId): int
+    public static function bayar(int $piutangId, int $jumlah, string $tanggal, string $catatan, ?int $userId, string $metode = 'tunai'): int
     {
         if ($jumlah < 1) { throw new InvalidArgumentException('Jumlah bayar harus lebih dari 0.'); }
         if (!Domain::validDate($tanggal)) { throw new InvalidArgumentException('Tanggal bayar tidak valid.'); }
-        return Db::transaction(function () use ($piutangId, $jumlah, $tanggal, $catatan, $userId) {
+        if (!isset(self::METODE_BAYAR[$metode])) { throw new InvalidArgumentException('Pilih cara bayar: cash atau transfer.'); }
+        return Db::transaction(function () use ($piutangId, $jumlah, $tanggal, $catatan, $userId, $metode) {
             $p = Db::one('SELECT * FROM piutang WHERE id = ?' . Db::forUpdate(), [$piutangId]);
             if (!$p || $p['status'] === 'batal') { throw new InvalidArgumentException('Data hutang tidak ditemukan.'); }
             $sisa = (int) $p['total'] - (int) $p['dibayar'];
             if ($jumlah > $sisa) { throw new InvalidArgumentException('Pembayaran ' . rp($jumlah) . ' melebihi sisa hutang ' . rp($sisa) . '.'); }
             $baru = (int) $p['dibayar'] + $jumlah;
             Db::exec('UPDATE piutang SET dibayar = ?, status = ? WHERE id = ?', [$baru, $baru >= (int) $p['total'] ? 'lunas' : 'sebagian', $p['id']]);
-            $id = Db::insert('INSERT INTO piutang_bayar (piutang_id, jumlah, tanggal, catatan, user_id, created_at) VALUES (?,?,?,?,?,?)', [$piutangId, $jumlah, $tanggal, mb_substr($catatan, 0, 255), $userId, date('Y-m-d H:i:s')]);
-            Db::audit($userId, 'bayar_piutang', 'piutang', $piutangId, $p['nama'] . ' ' . $jumlah);
+            try {
+                $id = Db::insert('INSERT INTO piutang_bayar (piutang_id, jumlah, tanggal, metode, catatan, user_id, created_at) VALUES (?,?,?,?,?,?,?)', [$piutangId, $jumlah, $tanggal, $metode, mb_substr($catatan, 0, 255), $userId, date('Y-m-d H:i:s')]);
+            } catch (PDOException $e) { // kolom metode belum dimigrasi
+                throw new InvalidArgumentException('Database belum diperbarui untuk cara bayar. Admin: buka Periksa Database lalu klik "Perbarui database sekarang".');
+            }
+            Db::audit($userId, 'bayar_piutang', 'piutang', $piutangId, $p['nama'] . ' ' . $jumlah . ' ' . $metode);
             return $id;
         });
     }
