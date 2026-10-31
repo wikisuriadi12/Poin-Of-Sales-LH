@@ -69,34 +69,13 @@ $cfg = [
     'csrf' => csrf_token(),
     'diskonMaks' => $maksDiskon,
 ];
-$rail = [
-    ['?p=pos', 'Kasir', 'grid', true, true],
-    ['?p=penjualan', 'Riwayat', 'clock', Auth::can('penjualan'), false],
-    ['?p=gudang&lok=ikhwan', 'Market', 'box', Auth::can('gudang.view'), false],
-    ['?p=gudang&lok=gudang', 'Gudang', 'box', Auth::can('gudang.view'), false],
-    ['?p=barang_masuk', 'Masuk', 'plus', Auth::can('barang.masuk'), false],
-    ['?p=piutang', 'Bon', 'receipt', Auth::can('piutang') || Auth::can('laporan'), false],
-    ['?p=hutang', 'Hutang', 'wallet', Auth::can('gudang.edit') || Auth::can('laporan'), false],
-    ['?p=laporan_pos', 'Laporan', 'bar-chart', Auth::can('penjualan') || Auth::can('gudang.view'), false],
-    ['?p=dompet', 'Santri', 'users', Auth::can('dompet'), false],
-    ['?p=akun_pos', 'Akun', 'shield', Auth::can('users'), false],
-];
 ob_start(); ?>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
-<link rel="stylesheet" href="assets/pos.css?v=4">
+<link rel="stylesheet" href="assets/pos.css?v=5">
+<link rel="stylesheet" href="assets/topnav.css?v=1">
+<?= topnav('pos') ?>
 <div class="kp" data-cfg="<?= e(json_encode($cfg, JSON_UNESCAPED_UNICODE)) ?>">
-  <nav class="kp-rail" aria-label="Menu kasir">
-    <a class="kp-logo" href="?p=pos" title="<?= e(Settings::get('nama_lembaga')) ?>">LH</a>
-    <?php foreach ($rail as [$href, $label, $ic, $boleh, $on]): if (!$boleh) { continue; } ?>
-      <a class="kp-ri<?= $on ? ' on' : '' ?>" href="<?= e($href) ?>"><?= icon($ic, 22) ?><span><?= e($label) ?></span></a>
-    <?php endforeach; ?>
-    <details class="kp-me">
-      <summary title="<?= e($user['nama']) ?>"><?= e(mb_strtoupper(mb_substr($user['nama'], 0, 1))) ?></summary>
-      <div class="kp-menu"><b><?= e($user['nama']) ?></b><small><?= e(Domain::ROLE[$user['role']] ?? $user['role']) ?></small>
-        <a href="?p=akun"><?= icon('key', 16) ?> Akun saya</a><a href="?p=logout"><?= icon('log-out', 16) ?> Keluar</a></div>
-    </details>
-  </nav>
 
   <main class="kp-main">
     <header class="kp-head">
