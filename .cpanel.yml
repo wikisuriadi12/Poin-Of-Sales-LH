@@ -1,8 +1,10 @@
 ---
 # Deploy cPanel (Git Version Control > Deploy HEAD Commit) ke aplikasi POS.
-# config.php dan storage/ tidak ditimpa dan tidak dihapus (tanpa --delete).
+# Server tidak punya rsync, jadi pakai cp. Hanya kode aplikasi yang disalin:
+# config.php, storage/, tests/, README.md, dan .git tidak ikut, dan tidak ada yang dihapus.
 deployment:
   tasks:
     - export DEPLOYPATH=/home/yayas183/poslh_app/
     - /bin/mkdir -p $DEPLOYPATH
-    - /usr/bin/rsync -rlt --exclude='.git' --exclude='.cpanel.yml' --exclude='tests' --exclude='README.md' --exclude='config.php' --exclude='storage' ./ $DEPLOYPATH
+    - /bin/cp -R assets database pages src tools $DEPLOYPATH
+    - /bin/cp index.php .htaccess config.example.php $DEPLOYPATH
