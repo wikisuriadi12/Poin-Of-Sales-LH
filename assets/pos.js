@@ -26,13 +26,15 @@
   function subtotal() { var t = 0; Object.keys(cart).forEach(function (id) { t += cart[id] * hrg(prod[id]); }); return t; }
   function jumlah() { var n = 0; Object.keys(cart).forEach(function (id) { n += cart[id]; }); return n; }
   function total() { return Math.max(0, subtotal() - diskon); }
+  // Batas diskon dari server (persen); null = bebas. Server tetap memeriksa ulang.
+  function maksDiskon() { return cfg.diskonMaks ? Math.floor(subtotal() * cfg.diskonMaks / 100) : subtotal(); }
 
   function tambah(id, d) {
     var p = prod[id]; if (!p) { return; }
     var q = (cart[id] || 0) + d;
     if (q > p.stok) { q = p.stok; toast('Stok ' + p.nama + ' hanya ' + p.stok + '.'); }
     if (q <= 0) { delete cart[id]; } else { cart[id] = q; }
-    if (diskon > subtotal()) { diskon = subtotal(); }
+    if (diskon > maksDiskon()) { diskon = maksDiskon(); }
     render();
   }
   function toast(msg) {
@@ -156,8 +158,12 @@
     din.value = diskon ? fmt(diskon) : ''; buka(dd); din.focus();
   });
   din.addEventListener('input', function () { din.value = fmt(din.value); });
-  $$('[data-pct]', dd).forEach(function (b) { b.addEventListener('click', function () { din.value = fmt(Math.round(subtotal() * parseInt(b.dataset.pct, 10) / 100)); }); });
-  $('#dk-ok').addEventListener('click', function () { diskon = Math.min(digits(din.value), subtotal()); tutup(dd); render(); });
+  $$('[data-pct]', dd).forEach(function (b) { b.addEventListener('click', function () { din.value = fmt(Math.floor(subtotal() * parseInt(b.dataset.pct, 10) / 100)); }); });
+  $('#dk-ok').addEventListener('click', function () {
+    var v = digits(din.value), mx = maksDiskon();
+    if (v > mx && cfg.diskonMaks) { toast('Diskon maksimal ' + cfg.diskonMaks + '% (' + rp(mx) + '). Diskon lebih besar perlu admin.'); }
+    diskon = Math.min(v, mx); tutup(dd); render();
+  });
   $('#dk-hapus').addEventListener('click', function () { diskon = 0; tutup(dd); render(); });
   din.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('#dk-ok').click(); } });
 
