@@ -1,12 +1,15 @@
 <?php
 // Akun petugas LH Mart & Gudang: admin, kasir, petugas gudang. Hanya admin.
 Auth::require('users');
-$peran = ['kasir' => 'Kasir', 'gudang' => 'Petugas gudang', 'admin' => 'Admin (semua sistem)'];
+$peran = ['kasir' => 'Kasir Level 1 (jual, piutang, label, stok masuk)', 'kasir2' => 'Kasir Level 2 (jual & laporan penjualan)', 'gudang' => 'Petugas gudang', 'admin' => 'Admin (semua sistem)'];
 if (is_post()) {
     csrf_check();
     try {
         $aksi = in_str('aksi');
         $uid = (int) in_str('uid');
+        if (in_array($aksi, ['tambah', 'ubah'], true) && isset($peran[in_str('role')]) && !Skema::peranAda(in_str('role'))) {
+            throw new InvalidArgumentException('Database belum mengenal peran ini. Buka menu Periksa Database lalu klik "Perbarui database sekarang".');
+        }
         if ($aksi === 'qris_api') {
             $pv = in_str('provider');
             if (!isset(QrisApi::PENYEDIA[$pv])) { throw new InvalidArgumentException('Penyedia tidak dikenal.'); }
@@ -75,8 +78,8 @@ if (is_post()) {
     }
     redirect('?p=akun_pos');
 }
-$ed = ($eid = (int) in_str('edit', '0')) ? Db::one('SELECT id, username, nama, role, unit_akses, aktif FROM users WHERE id = ? AND role IN (\'kasir\',\'gudang\',\'admin\')', [$eid]) : null;
-$users = Db::all('SELECT id, username, nama, role, unit_akses, aktif FROM users WHERE role IN (\'kasir\',\'gudang\',\'admin\') ORDER BY role, username');
+$ed = ($eid = (int) in_str('edit', '0')) ? Db::one('SELECT id, username, nama, role, unit_akses, aktif FROM users WHERE id = ? AND role IN (\'kasir\',\'kasir2\',\'gudang\',\'admin\')', [$eid]) : null;
+$users = Db::all('SELECT id, username, nama, role, unit_akses, aktif FROM users WHERE role IN (\'kasir\',\'kasir2\',\'gudang\',\'admin\') ORDER BY role, username');
 $unitOpt = ['semua' => 'Semua unit', 'ikhwan' => 'Ikhwan saja', 'akhwat' => 'Akhwat saja'];
 ob_start(); ?>
 <div class="page-h"><div><h1>Akun LH Mart &amp; Gudang</h1><p><?= count($users) ?> akun: admin, kasir, dan petugas gudang</p></div></div>

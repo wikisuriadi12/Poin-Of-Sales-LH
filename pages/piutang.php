@@ -1,6 +1,6 @@
 <?php
-$bisaBayar = Auth::can('pos');
-if (!$bisaBayar && !Auth::can('laporan')) { Auth::require('pos'); }
+$bisaBayar = Auth::can('piutang');
+if (!$bisaBayar && !Auth::can('laporan')) { Auth::require('piutang'); }
 $n = trim(in_str('n'));
 $statusF = in_str('status') === 'semua' ? 'semua' : 'belum';
 if (is_post() && $bisaBayar) {

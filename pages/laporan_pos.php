@@ -140,7 +140,7 @@ if (in_str('csv') === '1') {
     exit;
 }
 $qs = static fn(array $x = []) => '?' . http_build_query(array_filter(['p' => 'laporan_pos', 'tab' => $GLOBALS['tab'], 'dari' => $GLOBALS['dari'], 'sampai' => $GLOBALS['sampai'], 'metode' => $GLOBALS['f']['metode'], 'jenis' => $GLOBALS['f']['jenis'], 'kasir' => $GLOBALS['f']['kasir'] ?: '', 'status' => $GLOBALS['f']['status'], 'urut' => $GLOBALS['f']['urut'], 'lok' => $GLOBALS['f']['lok'], 'pemasok' => $GLOBALS['f']['pemasok'], 'stokf' => $GLOBALS['f']['stokf'], 'tipe' => $GLOBALS['f']['tipe']] + $x, static fn($v) => $v !== '' && $v !== null));
-$kasirList = $tab === 'penjualan' ? Db::all('SELECT id, nama FROM users WHERE role IN (\'kasir\',\'admin\') ORDER BY nama') : [];
+$kasirList = $tab === 'penjualan' ? Db::all('SELECT id, nama FROM users WHERE role IN (\'kasir\',\'kasir2\',\'admin\') ORDER BY nama') : [];
 $fmtSel = static fn($v, $jenis) => match ($jenis) { 'rp' => rp($v), 'n' => number_format((int) $v, 0, ',', '.'), 'tgl' => date('d/m/Y', strtotime((string) $v)), default => e((string) $v) };
 ob_start(); ?>
 <div class="page-h"><div><h1>Laporan LH Mart</h1><p>Periode <?= e(date('d/m/Y', strtotime($dari))) ?> s/d <?= e(date('d/m/Y', strtotime($sampai))) ?>. Hanya transaksi sah yang dihitung kecuali disebut lain.</p></div>
