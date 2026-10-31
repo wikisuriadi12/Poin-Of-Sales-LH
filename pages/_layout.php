@@ -20,7 +20,7 @@ if ($showApp) {
             ['penjualan', 'Penjualan', 'receipt', Auth::can('penjualan'), 0],
             ['dompet', 'Dompet Santri', 'wallet', Auth::can('dompet'), 0],
             ['gudang', 'Stok Gudang & Market', 'box', Auth::can('gudang.view'), $rendahN],
-            ['barang_masuk', 'Barang Masuk', 'plus', Auth::can('gudang.edit'), 0],
+            ['barang_masuk', 'Barang Masuk', 'plus', Auth::can('barang.masuk'), 0],
             ['piutang', 'Piutang Pelanggan', 'users', Auth::can('pos') || Auth::can('laporan'), 0],
             ['hutang', 'Hutang Supplier', 'wallet', Auth::can('gudang.edit') || Auth::can('laporan'), 0],
             ['laporan_pos', 'Laporan LH Mart', 'bar-chart', Auth::can('penjualan'), 0],

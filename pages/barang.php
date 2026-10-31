@@ -1,6 +1,8 @@
 <?php
-Auth::require('gudang.edit');
 $id = (int) in_str('id', '0');
+// Mengubah barang lama hanya admin/gudang; barang baru juga boleh kasir.
+Auth::require($id ? 'gudang.edit' : 'barang.tambah');
+$modal = Auth::can('harga_beli');
 $b = $id ? Gudang::find($id) : null;
 if ($id && !$b) { redirect('?p=gudang'); }
 $val = $b ?: ['kode' => '', 'nama' => '', 'kategori' => '', 'satuan' => 'pcs', 'harga_beli' => 0, 'harga_jual' => 0, 'harga_pegawai' => '', 'stok_min' => 5];
@@ -8,12 +10,13 @@ $err = [];
 if (is_post()) {
     csrf_check();
     [$c, $err] = Gudang::validateBarang($_POST);
+    if (!$modal) { $c['harga_beli'] = 0; } // diisi admin/gudang kemudian
     $val = $c;
     if (!$err) {
         try {
             $nid = Gudang::simpanBarang($c, $id ?: null, Auth::id());
             $ke = 'gudang';
-            if (!$id && in_str('ke_market') === '1') { Gudang::daftarkanMarket($nid, Auth::id()); $ke = 'ikhwan'; }
+            if (!$id && (in_str('ke_market') === '1' || !Auth::can('gudang.edit'))) { Gudang::daftarkanMarket($nid, Auth::id()); $ke = 'ikhwan'; }
             flash($id ? 'Barang diperbarui.' : ($ke === 'ikhwan' ? 'Barang ditambahkan dan terdaftar di Stok Market. Isi stok lewat "Barang masuk" (Market) atau transfer dari Gudang.' : 'Barang ditambahkan. Isi stok awal lewat "Barang masuk".'));
             redirect('?p=gudang_item&id=' . $nid . '&lok=' . $ke);
         } catch (InvalidArgumentException $ex) { $err['kode'] = $ex->getMessage(); }
@@ -34,12 +37,13 @@ ob_start(); ?>
     <label>Satuan <input name="satuan" value="<?= $f('satuan') ?>"></label>
   </fieldset>
   <fieldset><legend>Harga &amp; batas stok</legend>
-    <label>Harga beli (modal) <input name="harga_beli" data-rupiah value="<?= $f('harga_beli') ?>" inputmode="numeric"></label>
+    <?php if ($modal): ?><label>Harga beli (modal) <input name="harga_beli" data-rupiah value="<?= $f('harga_beli') ?>" inputmode="numeric"></label><?php endif; ?>
     <label>Harga jual umum <input name="harga_jual" data-rupiah value="<?= $f('harga_jual') ?>" inputmode="numeric" required><?= $er('harga_jual') ?></label>
     <label>Harga pegawai / karyawan <input name="harga_pegawai" data-rupiah value="<?= $f('harga_pegawai') ?>" inputmode="numeric" placeholder="Kosong = sama dengan harga umum"><?= $er('harga_pegawai') ?></label>
     <label>Batas stok menipis <input name="stok_min" value="<?= $f('stok_min') ?>" inputmode="numeric"></label>
   </fieldset>
-  <?php if (!$id): ?><label class="chk"><input type="checkbox" name="ke_market" value="1" checked> Langsung tampilkan di Stok Market (stok 0)</label><?php endif; ?>
+  <?php if (!$id && Auth::can('gudang.edit')): ?><label class="chk"><input type="checkbox" name="ke_market" value="1" checked> Langsung tampilkan di Stok Market (stok 0)</label><?php endif; ?>
+  <?php if (!$modal): ?><p class="mut">Barang langsung tampil di Market dengan stok 0. Isi stoknya lewat "Barang masuk". Harga modal diisi admin/petugas gudang.</p><?php endif; ?>
   <div class="acts"><button class="btn"><?= icon('check') ?> Simpan</button><a class="btn ghost" href="?p=gudang">Batal</a></div>
 </form>
 <?php render($id ? 'Ubah barang' : 'Barang baru', ob_get_clean());
