@@ -9,6 +9,15 @@ final class Pos
     /** Lokasi stok: market (kasir) dan gudang (penyimpanan). */
     public const GUDANG = 'gudang';
     public const LOKASI = ['gudang' => 'Gudang', 'ikhwan' => 'Market'];
+    /** Batas diskon (persen dari subtotal) untuk akun tanpa izin diskon.bebas. */
+    public const DISKON_MAKS_KASIR = 15;
+
+    /** Boleh membatalkan? admin/bendahara: semua; kasir: hanya penjualannya sendiri pada hari yang sama. */
+    public static function bolehBatal(array $p): bool
+    {
+        if (Auth::can('pos.batal')) { return true; }
+        return Auth::can('pos') && (int) $p['user_id'] === Auth::id() && $p['tanggal'] === date('Y-m-d');
+    }
 
     public static function saldo(int $santriId): int
     {
@@ -87,7 +96,7 @@ final class Pos
      * Catat penjualan.
      * @param array<int,int> $items barang_id => qty
      */
-    public static function jual(string $unit, ?int $santriId, array $items, string $metode, int $dibayar, ?int $userId, ?string $scope, int $diskon = 0, ?string $pelanggan = null, ?string $tempo = null): int
+    public static function jual(string $unit, ?int $santriId, array $items, string $metode, int $dibayar, ?int $userId, ?string $scope, int $diskon = 0, ?string $pelanggan = null, ?string $tempo = null, ?int $maksDiskonPersen = null): int
     {
         if (!isset(Domain::UNIT[$unit])) { throw new InvalidArgumentException('Unit tidak valid.'); }
         if ($scope !== null && $scope !== $unit) { throw new InvalidArgumentException('Unit di luar cakupan akun Anda.'); }
@@ -109,7 +118,7 @@ final class Pos
             if ($namaHutang === '') { throw new InvalidArgumentException('Nama pelanggan wajib diisi untuk pembelian hutang.'); }
         }
         $hargaPegawai = !$santriId && $pelanggan !== null && stripos($pelanggan, 'Pegawai') === 0;
-        return Db::transaction(function () use ($unit, $santriId, $items, $metode, $dibayar, $userId, $diskon, $pelanggan, $hargaPegawai, $namaHutang, $tempo) {
+        return Db::transaction(function () use ($unit, $santriId, $items, $metode, $dibayar, $userId, $diskon, $pelanggan, $hargaPegawai, $namaHutang, $tempo, $maksDiskonPersen) {
             $baris = []; $total = 0;
             foreach ($items as $bid => $qty) {
                 $b = Gudang::find((int) $bid);
@@ -120,6 +129,7 @@ final class Pos
                 $total += $qty * $b['harga_pakai'];
             }
             if ($diskon > $total) { throw new InvalidArgumentException('Diskon tidak boleh melebihi subtotal ' . rp($total) . '.'); }
+            self::cekBatasDiskon($diskon, $total, $maksDiskonPersen);
             $total -= $diskon;
             if ($metode === 'tunai') {
                 if ($dibayar < $total) { throw new InvalidArgumentException('Uang diterima (' . rp($dibayar) . ') kurang dari total ' . rp($total) . '.'); }
@@ -157,7 +167,7 @@ final class Pos
     }
 
     /** Total akhir (setelah harga pegawai & diskon) untuk keranjang; dipakai server sebelum membuat QRIS dinamis. */
-    public static function hitung(array $items, ?string $pelanggan, bool $santri, int $diskon): int
+    public static function hitung(array $items, ?string $pelanggan, bool $santri, int $diskon, ?int $maksDiskonPersen = null): int
     {
         $hp = !$santri && $pelanggan !== null && stripos(trim($pelanggan), 'Pegawai') === 0;
         $total = 0;
@@ -168,7 +178,15 @@ final class Pos
         }
         if ($total <= 0) { throw new InvalidArgumentException('Belum ada barang yang dipilih.'); }
         if ($diskon < 0 || $diskon > $total) { throw new InvalidArgumentException('Diskon tidak valid.'); }
+        self::cekBatasDiskon($diskon, $total, $maksDiskonPersen);
         return $total - $diskon;
+    }
+
+    private static function cekBatasDiskon(int $diskon, int $subtotal, ?int $maksPersen): void
+    {
+        if ($maksPersen !== null && $diskon * 100 > $subtotal * $maksPersen) {
+            throw new InvalidArgumentException('Diskon maksimal ' . $maksPersen . '% (' . rp(intdiv($subtotal * $maksPersen, 100)) . '). Diskon lebih besar perlu admin.');
+        }
     }
 
     public static function find(int $id): ?array

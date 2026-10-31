@@ -20,10 +20,15 @@ final class QrisApi
     /** Untuk pengujian: tiru jawaban HTTP. fn(string $method, string $url, array $headers, ?string $body): array [kode, isi] */
     public static $http = null;
 
-    // ---- penyimpanan kredensial (rahasia dienkripsi AES-256-GCM, kunci diturunkan dari config.php) ----
+    // ---- penyimpanan kredensial (rahasia dienkripsi AES-256-GCM) ----
+    // Kunci dari 'qris_key' di config.php agar tidak berubah saat config.php disunting.
+    // Tanpa 'qris_key', kunci lama (seluruh isi config.php) tetap dipakai agar rahasia tersimpan masih terbaca.
     private static function kunci(): string
     {
         $f = APP_ROOT . '/config.php';
+        $c = is_file($f) ? (require $f) : [];
+        $k = is_array($c) ? trim((string) ($c['qris_key'] ?? '')) : '';
+        if ($k !== '') { return hash('sha256', 'lhpos-qris-key|' . $k, true); }
         return hash('sha256', 'lhpos-qris|' . (is_file($f) ? (string) file_get_contents($f) : 'uji'), true);
     }
 
@@ -157,7 +162,10 @@ final class QrisApi
     {
         $j = json_decode($raw, true);
         if (!is_array($j) || self::provider() !== 'midtrans') { return [400, ['status' => 'error']]; }
-        $sig = hash('sha512', ($j['order_id'] ?? '') . ($j['status_code'] ?? '') . ($j['gross_amount'] ?? '') . self::secret());
+        // Tanpa Server Key, tanda tangan bisa dibuat siapa saja: tolak.
+        $secret = self::secret();
+        if ($secret === '') { return [503, ['status' => 'kredensial belum siap']]; }
+        $sig = hash('sha512', ($j['order_id'] ?? '') . ($j['status_code'] ?? '') . ($j['gross_amount'] ?? '') . $secret);
         if (!hash_equals($sig, (string) ($j['signature_key'] ?? ''))) { return [403, ['status' => 'tanda tangan salah']]; }
         self::terapkan((string) ($j['order_id'] ?? ''), (string) ($j['transaction_status'] ?? ''), (string) ($j['gross_amount'] ?? ''));
         return [200, ['status' => 'ok']];

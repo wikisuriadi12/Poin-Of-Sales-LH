@@ -20,10 +20,13 @@ final class Auth
         'pengaturan' => ['admin'],
         'audit' => ['admin'],
         'pos' => ['admin', 'kasir'],
+        'pos.batal' => ['admin', 'bendahara'], // batalkan penjualan siapa pun; kasir hanya miliknya hari ini (Pos::bolehBatal)
+        'diskon.bebas' => ['admin'], // selain ini diskon dibatasi Pos::DISKON_MAKS_KASIR
         'gudang.view' => ['admin', 'gudang', 'kasir', 'pimpinan'],
         'gudang.edit' => ['admin', 'gudang'],
         'harga_beli' => ['admin', 'gudang', 'bendahara', 'pimpinan'], // kasir tidak boleh melihat modal/laba
         'dompet' => ['admin', 'kasir', 'bendahara'],
+        'dompet.topup' => ['admin', 'bendahara'], // kasir tidak boleh menambah saldo (mencegah saldo fiktif)
         'dompet.koreksi' => ['admin', 'bendahara'],
         'tahfidz.view' => ['admin', 'ustadz', 'pembina', 'pimpinan', 'tu'],
         'tahfidz.edit' => ['admin', 'ustadz'],
