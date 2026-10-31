@@ -7,15 +7,19 @@ Auth::assertUnit($p['unit']);
 $items = Pos::items((int) $p['id']);
 $cfgS = Settings::all();
 $batal = (int) $p['dibatalkan'];
-if (is_post() && Auth::can('pos')) {
+if (is_post()) {
     csrf_check();
+    if (!Pos::bolehBatal($p)) {
+        flash('Kasir hanya boleh membatalkan penjualannya sendiri pada hari yang sama. Hubungi admin atau bendahara.', 'err');
+        redirect('?p=struk&id=' . (int) $p['id']);
+    }
     try {
         Pos::batalkan((int) $p['id'], in_str('alasan'), Auth::id(), $scope);
         flash('Penjualan dibatalkan; stok dan saldo dikembalikan.', 'warn');
     } catch (InvalidArgumentException $ex) { flash($ex->getMessage(), 'err'); }
     redirect('?p=struk&id=' . (int) $p['id']);
 }
-$bisaBatal = !$batal && (Auth::can('pos'));
+$bisaBatal = !$batal && Pos::bolehBatal($p);
 ob_start(); ?>
 <div class="page-h noprint"><div><h1>Struk penjualan</h1></div>
   <div class="acts"><button class="btn" data-print><?= icon('printer') ?> Cetak</button>

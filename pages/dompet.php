@@ -13,6 +13,7 @@ if (is_post()) {
             Pos::koreksi($sid, $d, in_str('alasan'), Auth::id(), $scope);
             flash('Saldo dikoreksi dan tercatat di jejak audit.', 'warn');
         } else {
+            if (!Auth::can('dompet.topup')) { throw new InvalidArgumentException('Top up saldo hanya oleh admin/bendahara.'); }
             Pos::topup($sid, $num('jumlah'), in_str('catatan'), Auth::id(), $scope);
             flash('Top up berhasil.');
         }
@@ -43,10 +44,14 @@ ob_start(); ?>
     <span style="margin-left:auto;text-align:right"><small>Saldo</small><br><b style="font-size:1.5rem"><?= rp($saldo) ?></b></span></div>
 </div>
 <div class="grid g2" style="margin-bottom:16px">
+  <?php if (Auth::can('dompet.topup')): ?>
   <form method="post" class="card form"><h2>Top up saldo</h2><?= csrf_field() ?><input type="hidden" name="santri_id" value="<?= $sid ?>"><input type="hidden" name="aksi" value="topup">
     <label>Nominal <input name="jumlah" data-rupiah inputmode="numeric" required></label>
     <label>Catatan <input name="catatan" placeholder="Dititipkan wali, transfer..."></label>
     <button class="btn"><?= icon('plus') ?> Top up</button></form>
+  <?php else: ?>
+  <div class="card"><h2>Top up saldo</h2><p class="mut">Top up dilakukan oleh admin atau bendahara.</p></div>
+  <?php endif; ?>
   <?php if (Auth::can('dompet.koreksi')): ?>
   <form method="post" class="card form"><h2>Koreksi saldo</h2><?= csrf_field() ?><input type="hidden" name="santri_id" value="<?= $sid ?>"><input type="hidden" name="aksi" value="koreksi">
     <label>Arah <select name="arah"><?= options(['tambah' => 'Tambah saldo', 'kurang' => 'Kurangi saldo']) ?></select></label>
@@ -69,7 +74,7 @@ ob_start(); ?>
 <div class="card"><h2>Santri bersaldo</h2>
   <ul class="list"><?php foreach ($daftar as $r): ?>
     <li><?= avatar($r['nama'], $r['unit']) ?><div class="sp"><b><?= e($r['nama']) ?></b><br><small><?= e($r['nis']) ?> &middot; <?= e($r['jenjang']) ?> <?= e(Domain::UNIT[$r['unit']]) ?></small></div><b><?= rp($r['saldo']) ?></b><a class="btn sm ghost" href="?p=dompet&amp;santri=<?= (int) $r['id'] ?>">Buka</a></li>
-  <?php endforeach; ?><?php if (!$daftar): ?><li class="mut">Belum ada saldo. Cari santri untuk top up.</li><?php endif; ?></ul>
+  <?php endforeach; ?><?php if (!$daftar): ?><li class="mut">Belum ada saldo.<?= Auth::can('dompet.topup') ? ' Cari santri untuk top up.' : '' ?></li><?php endif; ?></ul>
 </div>
 <?php endif; ?>
 <?php render('Dompet Santri', ob_get_clean());

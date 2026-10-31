@@ -3,6 +3,7 @@ if (Auth::user() && !Auth::can('pos')) { redirect(Auth::can('gudang.view') ? '?p
 Auth::require('pos');
 $scope = null;
 $unit = Pos::TOKO;
+$maksDiskon = Auth::can('diskon.bebas') ? null : Pos::DISKON_MAKS_KASIR;
 
 if (is_post()) {
     csrf_check();
@@ -14,13 +15,13 @@ if (is_post()) {
         $diskon = (int) preg_replace('/\D/', '', in_str('diskon', '0'));
         $bukti = null; $qrisRef = in_str('qris_ref');
         if (in_str('metode') === 'qris' && $qrisRef !== '') {
-            QrisApi::periksaUntukJual($qrisRef, Pos::hitung($items, in_str('pelanggan'), $sidP > 0, $diskon));
+            QrisApi::periksaUntukJual($qrisRef, Pos::hitung($items, in_str('pelanggan'), $sidP > 0, $diskon, $maksDiskon));
         } elseif (in_str('metode') === 'qris') {
             if (QrisApi::siap()) { throw new InvalidArgumentException('Gunakan QR dinamis yang ditampilkan kasir.'); }
             if (in_str('qris_ok') !== '1') { throw new InvalidArgumentException('Centang konfirmasi bahwa notifikasi pembayaran QRIS sudah masuk dan nominalnya sesuai.'); }
             $bukti = BuktiQris::siapkan($_FILES['bukti'] ?? null);
         }
-        $id = Pos::jual($unit, $sidP ?: null, $items, in_str('metode'), $dibayar, Auth::id(), $scope, $diskon, in_str('pelanggan'), in_str('tempo') ?: null);
+        $id = Pos::jual($unit, $sidP ?: null, $items, in_str('metode'), $dibayar, Auth::id(), $scope, $diskon, in_str('pelanggan'), in_str('tempo') ?: null, $maksDiskon);
         if ($qrisRef !== '' && in_str('metode') === 'qris') { QrisApi::pakai($qrisRef, $id); }
         if ($bukti !== null) { try { BuktiQris::simpan($id, $bukti); } catch (Throwable $ex) { flash('Penjualan tersimpan, tetapi foto bukti gagal disimpan: ' . $ex->getMessage(), 'err'); redirect('?p=struk&id=' . $id); } }
         flash('Penjualan tersimpan.');
@@ -66,6 +67,7 @@ $cfg = [
     'qrisBuat' => '?p=qris_buat',
     'qrisStatus' => '?p=qris_status',
     'csrf' => csrf_token(),
+    'diskonMaks' => $maksDiskon,
 ];
 $rail = [
     ['?p=pos', 'Kasir', 'grid', true, true],
@@ -183,5 +185,5 @@ ob_start(); ?>
   <ul class="kp-sl" id="sl-hasil"></ul>
   <div class="kp-dact"><button type="button" class="kp-btn ghost" data-tutup>Tutup</button></div>
 </div></dialog>
-<script src="assets/pos.js?v=10" defer></script>
+<script src="assets/pos.js?v=11" defer></script>
 <?php render('Kasir', ob_get_clean(), 'bare');
