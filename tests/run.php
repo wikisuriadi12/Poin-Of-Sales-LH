@@ -450,6 +450,8 @@ ok('top up masuk uang cash, bukan omzet barang', $cb1['tunai']['topup'] - $cb0['
     && $rk1['topup_n'] - $rk0['topup_n'] === 1 && $rk1['topup_laba'] - $rk0['topup_laba'] === 1000 && $rk1['topup_admin'] - $rk0['topup_admin'] === 2000);
 ok('top up tampil di rincian harian dan daftar transaksi', LaporanPos::perHari($hari0, $hari0)[$hari0]['topup'] >= 52000 && in_array($idT, array_map('intval', array_column(LaporanPos::transaksi($hari0, $hari0), 'id')), true));
 ok('laporan top up per kasir', count(Emoney::laporan($hari0, $hari0, $k1)) === 1 && count(Emoney::laporan($hari0, $hari0, $k2)) === 0);
+$rwTu = Pos::daftar(['dari' => $hari0, 'sampai' => $hari0, 'jenis' => 'topup'], null);
+ok('riwayat bisa difilter hanya top up', count($rwTu) === 1 && (int) $rwTu[0]['id'] === $idT && !in_array($idT, array_map('intval', array_column(Pos::daftar(['dari' => $hari0, 'sampai' => $hari0, 'jenis' => 'barang'], null), 'id')), true));
 Pos::batalkan($idT, 'salah nomor', $k1, null);
 ok('batal top up mengembalikan deposit', (int) Db::val('SELECT saldo FROM emoney_sumber WHERE id = ?', [$sDana]) === 200000 && count(Emoney::laporan($hari0, $hari0)) === 0);
 throws('koreksi deposit tanpa alasan ditolak', fn() => Emoney::ubahDeposit($sDana, -1000, 'koreksi', '', null));
