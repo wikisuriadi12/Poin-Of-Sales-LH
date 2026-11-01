@@ -7,6 +7,9 @@
 .tn-i{flex:none;display:flex;align-items:center;gap:7px;height:38px;padding:0 12px;border-radius:10px;color:var(--tn-ink);font-size:.86rem;font-weight:600;text-decoration:none;white-space:nowrap}
 .tn-i:hover{background:rgba(255,255,255,.08);color:#fff}
 .tn-i.on{background:var(--tn-on);color:#fff;font-weight:700}
+.tn-geser{flex:none;display:none;place-items:center;width:30px;height:38px;border:0;border-radius:10px;background:rgba(255,255,255,.12);color:#fff;font-size:22px;line-height:1;cursor:pointer;padding:0}
+.tn-geser:hover{background:rgba(255,255,255,.22)}
+.tn.bisa-kiri .tn-geser.kiri,.tn.bisa-kanan .tn-geser.kanan{display:grid}
 .tn-cnt{background:#e0a94a;color:#2c1d05;border-radius:99px;font-size:.7rem;padding:1px 7px;font-weight:700}
 .tn-me{flex:none;position:relative}
 .tn-me summary{list-style:none;width:36px;height:36px;border-radius:50%;background:#dcefe3;color:#0a5a41;display:grid;place-items:center;font-weight:800;cursor:pointer}

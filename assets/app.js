@@ -17,9 +17,25 @@
     if (pr) { window.print(); }
   });
 
-  // Menu atas: pastikan menu aktif terlihat di layar sempit
-  var aktif = d.querySelector('.tn-i.on');
-  if (aktif && aktif.scrollIntoView) { aktif.scrollIntoView({block: 'nearest', inline: 'center'}); }
+  // Menu atas: tombol panah dan roda mouse untuk menggeser menu yang tidak muat; menu aktif digeser ke tengah
+  var tn = d.querySelector('.tn'), nav = tn && tn.querySelector('.tn-nav');
+  if (nav) {
+    var cekGeser = function () {
+      tn.classList.toggle('bisa-kiri', nav.scrollLeft > 4);
+      tn.classList.toggle('bisa-kanan', nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 4);
+    };
+    tn.querySelectorAll('[data-geser]').forEach(function (b) {
+      b.addEventListener('click', function () { nav.scrollBy({left: parseInt(b.getAttribute('data-geser'), 10) * Math.max(160, nav.clientWidth * 0.7), behavior: 'smooth'}); });
+    });
+    nav.addEventListener('wheel', function (e) {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && nav.scrollWidth > nav.clientWidth) { nav.scrollLeft += e.deltaY; e.preventDefault(); }
+    }, {passive: false});
+    nav.addEventListener('scroll', cekGeser);
+    window.addEventListener('resize', cekGeser);
+    var aktif = nav.querySelector('.tn-i.on');
+    if (aktif) { nav.scrollLeft = aktif.offsetLeft - (nav.clientWidth - aktif.offsetWidth) / 2; }
+    cekGeser();
+  }
 
   // Konfirmasi
   d.addEventListener('submit', function (e) {
