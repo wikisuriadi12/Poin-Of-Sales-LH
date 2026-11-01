@@ -174,6 +174,24 @@ function csv_out(string $filename, array $header, array $rows): void
     exit;
 }
 
+/** Rincian di bawah daftar transaksi: jumlah baris dan total pembayaran per cara bayar (transaksi batal tidak dihitung). */
+function rincian_bayar(array $rows): string
+{
+    $jml = array_fill_keys(array_keys(LaporanPos::CARA_BAYAR), 0);
+    foreach ($rows as $r) {
+        if ((int) ($r['dibatalkan'] ?? 0) || !isset($jml[$r['metode']])) { continue; }
+        $jml[$r['metode']] += (int) $r['total'];
+    }
+    $n = count($rows);
+    $h = '<div class="rincian-bayar" style="margin-top:12px;line-height:2">'
+        . '<div class="mut">Menampilkan ' . ($n ? '1 sampai ' . $n . ' dari ' . $n : '0') . ' transaksi</div>';
+    foreach (LaporanPos::CARA_BAYAR as $k => $label) {
+        if ($k === 'dompet' && $jml[$k] === 0) { continue; }
+        $h .= '<div>Pembayaran ' . e($label) . ' Rp. : <b>' . number_format($jml[$k], 0, ',', '.') . '</b></div>';
+    }
+    return $h . '</div>';
+}
+
 /** Menu atas aplikasi (semua halaman petugas, termasuk kasir). Isi menu mengikuti hak akses akun. */
 function topnav(string $cur): string
 {
