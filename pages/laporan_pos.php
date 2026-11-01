@@ -9,7 +9,7 @@ $tab = isset($tabs[in_str('tab')]) ? in_str('tab') : array_key_first($tabs);
 $dari = Domain::validDate(in_str('dari')) ? in_str('dari') : date('Y-m-01');
 $sampai = Domain::validDate(in_str('sampai')) ? in_str('sampai') : date('Y-m-d');
 if ($dari > $sampai) { [$dari, $sampai] = [$sampai, $dari]; }
-$metodeNama = ['tunai' => 'Tunai', 'dompet' => 'Saldo Santri', 'qris' => 'QRIS', 'hutang' => 'Hutang (bon)'];
+$metodeNama = LaporanPos::CARA_BAYAR;
 $jenisNama = ['umum' => 'Umum', 'pegawai' => 'Pegawai', 'santri' => 'Santri'];
 $tipeNama = ['transfer_masuk' => 'Transfer masuk', 'transfer_keluar' => 'Transfer keluar', 'opname' => 'Opname / koreksi', 'keluar' => 'Keluar (rusak/hilang)'];
 $lokNama = Pos::LOKASI;
@@ -30,9 +30,28 @@ switch ($tab) {
         $grafik = [];
         foreach ($hari as $d => $v) { $grafik[substr($d, 8) . '/' . substr($d, 5, 2)] = $v['omzet']; }
         if (count($grafik) > 31) { $grafik = array_slice($grafik, -31, null, true); }
-        $extra = '<h3>Omzet per hari</h3>' . Charts::bars($grafik, 'Omzet per hari');
-        $kolom = ['Tanggal' => 'tgl', 'Transaksi' => 'n', 'Omzet' => 'rp'];
-        foreach (array_reverse($hari, true) as $d => $v) { if ($v['n'] > 0) { $baris[] = [$d, $v['n'], $v['omzet']]; } }
+        // Pemisahan cara bayar: Cash, QRIS/Transfer, Hutang/Bon (Saldo santri hanya bila dipakai)
+        $cb = LaporanPos::caraBayar($dari, $sampai);
+        $tampil = array_filter(array_keys($cb), static fn($k) => $k !== 'dompet' || $cb[$k]['jual'] > 0);
+        $extra = '<h3>Pemisahan cara bayar</h3><div class="scroll"><table class="rt"><thead><tr><th>Cara bayar</th><th class="r">Transaksi</th><th class="r">Penjualan</th><th class="r">Pelunasan bon</th><th class="r">Uang diterima</th></tr></thead><tbody>';
+        foreach ($tampil as $k) {
+            $c = $cb[$k]; $uang = in_array($k, ['tunai', 'qris'], true);
+            $extra .= '<tr><td><b>' . e($metodeNama[$k]) . '</b></td><td class="r" data-label="Transaksi">' . $c['n'] . '</td><td class="r" data-label="Penjualan">' . rp($c['jual']) . '</td>'
+                . '<td class="r" data-label="Pelunasan bon">' . ($uang ? rp($c['lunas']) : '-') . '</td><td class="r" data-label="Uang diterima">' . ($uang ? '<b>' . rp($c['terima']) . '</b>' : '<span class="mut">' . ($k === 'hutang' ? 'belum dibayar' : 'dari saldo') . '</span>') . '</td></tr>';
+        }
+        $extra .= '<tr><td><b>Total uang diterima</b></td><td></td><td></td><td></td><td class="r"><b>' . rp($cb['tunai']['terima'] + $cb['qris']['terima']) . '</b></td></tr></tbody></table></div>'
+            . '<p class="mut" style="margin:6px 0 14px">Pelunasan bon dihitung menurut tanggal bayar dan cara bayarnya (cash atau transfer).</p>';
+        $extra .= '<h3>Omzet per hari</h3>' . Charts::bars($grafik, 'Omzet per hari');
+        $kolom = ['Tanggal' => 'tgl', 'Transaksi' => 'n'];
+        foreach ($tampil as $k) { $kolom[$metodeNama[$k]] = 'rp'; }
+        $kolom['Omzet'] = 'rp';
+        foreach (array_reverse($hari, true) as $d => $v) {
+            if ($v['n'] === 0) { continue; }
+            $b = [$d, $v['n']];
+            foreach ($tampil as $k) { $b[] = $v[$k]; }
+            $b[] = $v['omzet'];
+            $baris[] = $b;
+        }
         $mm = LaporanPos::perMetode($dari, $sampai); $mj = LaporanPos::perJenis($dari, $sampai);
         $extra .= '<div class="grid g2" style="margin-top:12px"><div><h3>Per metode bayar</h3>' . ($mm ? Charts::hbars(array_column(array_map(static fn($x) => [$metodeNama[$x['metode']] ?? $x['metode'], (int) $x['omzet']], $mm), 1, 0), 'rp') : '<div class="empty">Belum ada.</div>') . '</div>'
             . '<div><h3>Per jenis pelanggan</h3>' . ($mj ? Charts::hbars(array_column(array_map(static fn($x) => [$jenisNama[$x['jenis']] ?? $x['jenis'], (int) $x['omzet']], $mj), 1, 0), 'rp') : '<div class="empty">Belum ada.</div>') . '</div></div><h3 style="margin-top:12px">Rincian harian</h3>';
