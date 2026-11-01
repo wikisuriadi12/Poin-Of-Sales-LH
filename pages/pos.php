@@ -73,7 +73,7 @@ ob_start(); ?>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
 <link rel="stylesheet" href="assets/pos.css?v=5">
-<link rel="stylesheet" href="assets/topnav.css?v=1">
+<link rel="stylesheet" href="assets/topnav.css?v=2">
 <?= topnav('pos') ?>
 <div class="kp" data-cfg="<?= e(json_encode($cfg, JSON_UNESCAPED_UNICODE)) ?>">
 
