@@ -235,6 +235,7 @@ final class Pos
         if ($unit !== '') { $sql .= ' AND p.unit = ?'; $p[] = $unit; }
         if (!empty($f['metode'])) { $sql .= ' AND p.metode = ?'; $p[] = $f['metode']; }
         if (!empty($f['user'])) { $sql .= ' AND p.user_id = ?'; $p[] = (int) $f['user']; }
+        if (!empty($f['jenis'])) { $sql .= ' AND p.jenis = ?'; $p[] = $f['jenis']; }
         return Db::all($sql . ' ORDER BY p.id DESC LIMIT ' . (int) $limit, $p);
     }
 

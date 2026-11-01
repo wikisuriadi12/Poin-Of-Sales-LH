@@ -217,13 +217,14 @@ function topnav(string $cur): string
         ['impor_stok', 'Impor', 'upload', Auth::can('gudang.edit'), 0],
         ['akun_pos', 'Akun kasir', 'shield', Auth::can('users'), 0],
     ];
-    $h = '<header class="tn noprint"><a class="tn-logo" href="?p=' . e(Domain::home('pos', $u['role'])) . '" title="' . e(Settings::get('nama_lembaga')) . '">LH</a><nav class="tn-nav" aria-label="Menu utama">';
+    $h = '<header class="tn noprint"><a class="tn-logo" href="?p=' . e(Domain::home('pos', $u['role'])) . '" title="' . e(Settings::get('nama_lembaga')) . '">LH</a>'
+        . '<button type="button" class="tn-geser kiri" data-geser="-1" aria-label="Geser menu ke kiri">&#8249;</button><nav class="tn-nav" aria-label="Menu utama">';
     foreach ($items as [$k, $label, $ic, $boleh, $cnt]) {
         if (!$boleh) { continue; }
         $h .= '<a class="tn-i' . ($cur === $k ? ' on' : '') . '" href="?p=' . e($k) . '"' . ($cur === $k ? ' aria-current="page"' : '') . '>' . icon($ic, 18) . '<span>' . e($label) . '</span>'
             . ($cnt > 0 ? '<b class="tn-cnt" title="Stok menipis">' . (int) $cnt . '</b>' : '') . '</a>';
     }
-    $h .= '</nav><details class="tn-me"><summary title="' . e($u['nama']) . '" aria-label="Menu akun">' . e(mb_strtoupper(mb_substr($u['nama'], 0, 1))) . '</summary>'
+    $h .= '</nav><button type="button" class="tn-geser kanan" data-geser="1" aria-label="Geser menu ke kanan">&#8250;</button><details class="tn-me"><summary title="' . e($u['nama']) . '" aria-label="Menu akun">' . e(mb_strtoupper(mb_substr($u['nama'], 0, 1))) . '</summary>'
         . '<div class="tn-menu"><b>' . e($u['nama']) . '</b><small>' . e(Domain::ROLE[$u['role']] ?? $u['role']) . '</small>'
         . '<a href="?p=akun">' . icon('key', 16) . ' Akun saya</a>'
         . (Auth::can('users') ? '<a href="?p=db_cek">' . icon('clipboard', 16) . ' Periksa database</a>' : '')
