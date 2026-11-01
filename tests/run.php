@@ -294,6 +294,8 @@ ok('cara bayar bon tercatat (bawaan cash, lalu transfer)', $byH === ['transfer',
 $cbT = LaporanPos::caraBayar(date('Y-m-d'), date('Y-m-d'));
 ok('laporan cara bayar: pelunasan bon cash dan transfer terpisah', $cbT['tunai']['lunas'] === 1000 && $cbT['qris']['lunas'] === (int) $pH['total'] - 1000);
 ok('laporan cara bayar: uang diterima = penjualan + pelunasan, bon tidak dihitung', $cbT['tunai']['terima'] === $cbT['tunai']['jual'] + 1000 && $cbT['hutang']['jual'] >= (int) $pH['total'] && $cbT['hutang']['terima'] === 0);
+$rb = rincian_bayar([['metode' => 'tunai', 'total' => 2000, 'dibatalkan' => 0], ['metode' => 'tunai', 'total' => 500, 'dibatalkan' => 1], ['metode' => 'qris', 'total' => 45000, 'dibatalkan' => 0], ['metode' => 'hutang', 'total' => 38000, 'dibatalkan' => 0]]);
+ok('rincian bayar di bawah daftar transaksi', str_contains($rb, 'Menampilkan 1 sampai 4 dari 4') && str_contains($rb, 'Cash Rp. : <b>2.000<') && str_contains($rb, 'QRIS / Transfer Rp. : <b>45.000<') && str_contains($rb, 'Hutang / Bon Rp. : <b>38.000<') && !str_contains($rb, 'Saldo santri'));
 ok('rincian harian dipisah per cara bayar', LaporanPos::perHari(date('Y-m-d'), date('Y-m-d'))[date('Y-m-d')]['hutang'] >= (int) $pH['total']);
 $idH2 = Pos::jual('ikhwan', null, [$b1 => 1], 'hutang', 0, null, null, 0, 'Pegawai: Rina');
 ok('hutang pegawai memakai harga pegawai bila ada', (int) Db::val('SELECT total FROM penjualan WHERE id = ?', [$idH2]) > 0);
