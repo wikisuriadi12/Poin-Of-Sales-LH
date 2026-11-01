@@ -203,12 +203,14 @@ function topnav(string $cur): string
     if (Auth::can('gudang.view')) { try { $rendah = Gudang::jumlahRendah(Pos::TOKO); } catch (Throwable $e) { $rendah = 0; } }
     $items = [
         ['pos', 'Kasir', 'cart', Auth::can('pos'), 0],
+        ['topup', 'Top up', 'credit-card', Auth::can('pos'), 0],
         ['penjualan', 'Riwayat', 'clock', Auth::can('penjualan'), 0],
         ['gudang', 'Stok', 'box', Auth::can('gudang.view'), $rendah],
         ['barang_masuk', 'Barang masuk', 'plus', Auth::can('barang.masuk'), 0],
         ['piutang', 'Bon', 'receipt', Auth::can('piutang') || Auth::can('laporan'), 0],
         ['hutang', 'Hutang supplier', 'wallet', Auth::can('gudang.edit') || Auth::can('laporan'), 0],
         ['dompet', 'Dompet santri', 'wallet', Auth::can('dompet'), 0],
+        ['emoney', 'Deposit e-money', 'wallet', Auth::can('emoney.deposit') || Auth::can('emoney.produk'), 0],
         ['label', 'Label', 'tag', Auth::can('gudang.view'), 0],
         ['laporan_pos', Auth::can('gudang.view') ? 'Laporan' : 'Laporan penjualan', 'bar-chart', Auth::can('penjualan'), 0],
         ['laporan_stok', 'Laporan stok', 'file-text', Auth::can('gudang.view'), 0],

@@ -26,49 +26,57 @@ final class LaporanPos
     public static function ringkasan(string $dari, string $sampai): array
     {
         $p = [$dari, $sampai];
-        $r = Db::one('SELECT COUNT(*) AS n, COALESCE(SUM(p.total),0) AS omzet FROM penjualan p WHERE ' . self::sah(), $p);
+        $r = Db::one('SELECT COUNT(*) AS n, COALESCE(SUM(p.total),0) AS omzet FROM penjualan p WHERE ' . self::sah() . " AND p.jenis = 'barang'", $p);
+        // Top up e-money: dihitung terpisah dari omzet barang
+        $tu = Db::one('SELECT COUNT(*) AS n, COALESCE(SUM(p.total),0) AS total, COALESCE(SUM(t.biaya_admin),0) AS admin, COALESCE(SUM(p.total - t.modal),0) AS laba FROM penjualan p JOIN emoney_trx t ON t.penjualan_id = p.id WHERE ' . self::sah(), $p);
         $qty = (int) Db::val('SELECT COALESCE(SUM(i.qty),0) FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id WHERE ' . self::sah(), $p);
         $batal = Db::one('SELECT COUNT(*) AS n, COALESCE(SUM(p.total),0) AS nilai FROM penjualan p WHERE p.dibatalkan = 1 AND p.tanggal >= ? AND p.tanggal <= ?' . self::filterKasir(), $p);
         $diskon = 0;
         try { $diskon = (int) Db::val('SELECT COALESCE(SUM(p.diskon),0) FROM penjualan p WHERE ' . self::sah(), $p); } catch (Throwable $e) { /* kolom belum ada */ }
         $k = Pos::ringkas($dari, $sampai, null, self::$kasir);
         $n = (int) $r['n'];
-        return ['n' => $n, 'omzet' => (int) $r['omzet'], 'laba' => $k['laba'], 'qty' => $qty, 'diskon' => $diskon, 'rata' => $n > 0 ? intdiv((int) $r['omzet'], $n) : 0, 'batal_n' => (int) $batal['n'], 'batal_nilai' => (int) $batal['nilai']];
+        return ['n' => $n, 'omzet' => (int) $r['omzet'], 'laba' => $k['laba'], 'qty' => $qty, 'diskon' => $diskon, 'rata' => $n > 0 ? intdiv((int) $r['omzet'], $n) : 0, 'batal_n' => (int) $batal['n'], 'batal_nilai' => (int) $batal['nilai'],
+            'topup_n' => (int) $tu['n'], 'topup_total' => (int) $tu['total'], 'topup_admin' => (int) $tu['admin'], 'topup_laba' => (int) $tu['laba']];
     }
 
     /** Kelompok cara bayar di laporan (kunci = penjualan.metode). Pelunasan bon transfer masuk ke qris. */
     public const CARA_BAYAR = ['tunai' => 'Cash', 'qris' => 'QRIS / Transfer', 'hutang' => 'Hutang / Bon', 'dompet' => 'Saldo santri'];
 
-    /** @return array<string,array{n:int,omzet:int,tunai:int,qris:int,hutang:int,dompet:int}> tanggal => data, termasuk hari tanpa penjualan */
+    /**
+     * Per hari: jumlah transaksi (barang + top up), uang per cara bayar (barang + top up), omzet barang, dan total top up.
+     * @return array<string,array{n:int,omzet:int,topup:int,tunai:int,qris:int,hutang:int,dompet:int}> tanggal => data, termasuk hari tanpa penjualan
+     */
     public static function perHari(string $dari, string $sampai): array
     {
         $out = [];
-        $kosong = ['n' => 0, 'omzet' => 0] + array_fill_keys(array_keys(self::CARA_BAYAR), 0);
+        $kosong = ['n' => 0, 'omzet' => 0, 'topup' => 0] + array_fill_keys(array_keys(self::CARA_BAYAR), 0);
         for ($t = strtotime($dari), $akhir = strtotime($sampai), $i = 0; $t <= $akhir && $i < 400; $t += 86400, $i++) { $out[date('Y-m-d', $t)] = $kosong; }
-        foreach (Db::all('SELECT p.tanggal, p.metode, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE ' . self::sah() . ' GROUP BY p.tanggal, p.metode', [$dari, $sampai]) as $r) {
+        foreach (Db::all('SELECT p.tanggal, p.metode, p.jenis, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE ' . self::sah() . ' GROUP BY p.tanggal, p.metode, p.jenis', [$dari, $sampai]) as $r) {
             if (!isset($out[$r['tanggal']])) { continue; }
             $out[$r['tanggal']]['n'] += (int) $r['n'];
-            $out[$r['tanggal']]['omzet'] += (int) $r['omzet'];
+            $out[$r['tanggal']][$r['jenis'] === 'topup' ? 'topup' : 'omzet'] += (int) $r['omzet'];
             if (isset(self::CARA_BAYAR[$r['metode']])) { $out[$r['tanggal']][$r['metode']] += (int) $r['omzet']; }
         }
         return $out;
     }
 
     /**
-     * Pemisahan uang per cara bayar: penjualan (menurut metode kasir) dan pelunasan bon (menurut tanggal & cara bayar pelunasan).
-     * @return array<string,array{n:int,jual:int,lunas:int,terima:int}> kunci CARA_BAYAR
+     * Pemisahan uang per cara bayar: penjualan barang dan top up (menurut metode kasir), serta pelunasan bon (menurut tanggal & cara bayar pelunasan).
+     * @return array<string,array{n:int,jual:int,topup:int,lunas:int,terima:int}> kunci CARA_BAYAR
      */
     public static function caraBayar(string $dari, string $sampai): array
     {
-        $out = array_fill_keys(array_keys(self::CARA_BAYAR), ['n' => 0, 'jual' => 0, 'lunas' => 0, 'terima' => 0]);
-        foreach (self::perMetode($dari, $sampai) as $r) {
-            if (isset($out[$r['metode']])) { $out[$r['metode']]['n'] = (int) $r['n']; $out[$r['metode']]['jual'] = (int) $r['omzet']; }
+        $out = array_fill_keys(array_keys(self::CARA_BAYAR), ['n' => 0, 'jual' => 0, 'topup' => 0, 'lunas' => 0, 'terima' => 0]);
+        foreach (Db::all('SELECT p.metode, p.jenis, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE ' . self::sah() . ' GROUP BY p.metode, p.jenis', [$dari, $sampai]) as $r) {
+            if (!isset($out[$r['metode']])) { continue; }
+            $out[$r['metode']]['n'] += (int) $r['n'];
+            $out[$r['metode']][$r['jenis'] === 'topup' ? 'topup' : 'jual'] += (int) $r['omzet'];
         }
         try {
             $lunas = Db::all("SELECT b.metode, SUM(b.jumlah) AS jml FROM piutang_bayar b JOIN piutang p ON p.id = b.piutang_id WHERE p.status <> 'batal' AND b.tanggal >= ? AND b.tanggal <= ?" . self::filterKasir('b.user_id') . ' GROUP BY b.metode', [$dari, $sampai]);
         } catch (Throwable $e) { $lunas = []; } // kolom metode belum dimigrasi
         foreach ($lunas as $r) { $out[$r['metode'] === 'transfer' ? 'qris' : 'tunai']['lunas'] += (int) $r['jml']; }
-        foreach (['tunai', 'qris'] as $k) { $out[$k]['terima'] = $out[$k]['jual'] + $out[$k]['lunas']; }
+        foreach (['tunai', 'qris'] as $k) { $out[$k]['terima'] = $out[$k]['jual'] + $out[$k]['topup'] + $out[$k]['lunas']; }
         return $out;
     }
 
@@ -81,9 +89,9 @@ final class LaporanPos
     {
         $j = self::jenisSql();
         try {
-            return Db::all("SELECT $j AS jenis, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE " . self::sah() . " GROUP BY $j ORDER BY omzet DESC", [$dari, $sampai]);
+            return Db::all("SELECT $j AS jenis, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE " . self::sah() . " AND p.jenis = 'barang' GROUP BY $j ORDER BY omzet DESC", [$dari, $sampai]);
         } catch (Throwable $e) {
-            return Db::all("SELECT CASE WHEN p.santri_id IS NOT NULL THEN 'santri' ELSE 'umum' END AS jenis, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE " . self::sah() . ' GROUP BY 1', [$dari, $sampai]);
+            return Db::all("SELECT CASE WHEN p.santri_id IS NOT NULL THEN 'santri' ELSE 'umum' END AS jenis, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE " . self::sah() . " AND p.jenis = 'barang' GROUP BY 1", [$dari, $sampai]);
         }
     }
 
@@ -97,7 +105,7 @@ final class LaporanPos
         if ($jenis === 'santri') { $w .= ' AND p.santri_id IS NOT NULL'; }
         elseif ($jenis === 'pegawai') { $w .= " AND p.santri_id IS NULL AND p.pelanggan LIKE 'Pegawai%'"; }
         elseif ($jenis === 'umum') { $w .= " AND p.santri_id IS NULL AND (p.pelanggan IS NULL OR p.pelanggan NOT LIKE 'Pegawai%')"; }
-        return Db::all("SELECT p.id, p.no_struk, p.tanggal, p.created_at, p.metode, p.total, p.dibatalkan, p.pelanggan, s.nama AS santri_nama, u.nama AS kasir FROM penjualan p LEFT JOIN santri s ON s.id = p.santri_id LEFT JOIN users u ON u.id = p.user_id WHERE $w ORDER BY p.id DESC LIMIT 2000", $a);
+        return Db::all("SELECT p.id, p.no_struk, p.tanggal, p.created_at, p.metode, p.jenis, p.total, p.dibatalkan, p.pelanggan, s.nama AS santri_nama, u.nama AS kasir FROM penjualan p LEFT JOIN santri s ON s.id = p.santri_id LEFT JOIN users u ON u.id = p.user_id WHERE $w ORDER BY p.id DESC LIMIT 2000", $a);
     }
 
     public static function produk(string $dari, string $sampai, string $urut = 'qty'): array

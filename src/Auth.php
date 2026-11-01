@@ -22,6 +22,8 @@ final class Auth
         // kasir = Kasir Level 1 (jual, laporan, piutang, label, tambah stok); kasir2 = Level 2 (jual & laporan penjualan)
         'pos' => ['admin', 'kasir', 'kasir2'],
         'piutang' => ['admin', 'kasir'], // mencatat pembayaran bon pelanggan
+        'emoney.produk' => ['admin'], // atur produk & tarif top up e-money
+        'emoney.deposit' => ['admin', 'bendahara'], // isi/koreksi saldo deposit agen; top up dilayani lewat izin pos
         'pos.batal' => ['admin', 'bendahara'], // batalkan penjualan siapa pun; kasir hanya miliknya hari ini (Pos::bolehBatal)
         'diskon.bebas' => ['admin'], // selain ini diskon dibatasi Pos::DISKON_MAKS_KASIR
         'gudang.view' => ['admin', 'gudang', 'kasir', 'pimpinan'],

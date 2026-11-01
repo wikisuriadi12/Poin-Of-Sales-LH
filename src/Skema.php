@@ -35,6 +35,8 @@ final class Skema
             ['label' => 'stok_mutasi.unit mengenal Gudang', 'ok' => $enum('stok_mutasi', 'unit', 'gudang'), 'file' => 'migrasi-gudang-market.sql'],
             ['label' => 'stok_mutasi.tipe mengenal transfer', 'ok' => $enum('stok_mutasi', 'tipe', 'transfer_masuk'), 'file' => 'migrasi-gudang-market.sql'],
             ['label' => 'piutang_bayar.metode (cash/transfer)', 'ok' => $kolom('piutang_bayar', 'metode'), 'file' => 'migrasi-bayar-bon-metode.sql'],
+            ['label' => 'penjualan.jenis (barang / top up)', 'ok' => $kolom('penjualan', 'jenis'), 'file' => 'migrasi-emoney.sql'],
+            ['label' => 'tabel top up e-money', 'ok' => $tabel('emoney_trx') && $tabel('emoney_sumber') && $tabel('emoney_produk') && $tabel('emoney_mutasi'), 'file' => 'migrasi-emoney.sql'],
             ['label' => 'users.role mengenal Kasir Level 2', 'ok' => $enum('users', 'role', 'kasir2'), 'file' => 'migrasi-kasir-level.sql'],
         ];
     }

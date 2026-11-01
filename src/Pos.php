@@ -221,6 +221,7 @@ final class Pos
             if ($p['metode'] === 'dompet' && $p['santri_id']) {
                 self::ubahSaldo((int) $p['santri_id'], (int) $p['total'], 'batal', $id, 'batal ' . $p['no_struk'], $userId);
             }
+            if (($p['jenis'] ?? 'barang') === 'topup') { Emoney::batalkanPenjualan($id, $userId); }
             Db::audit($userId, 'batal', 'penjualan', $id, $alasan);
         });
     }
@@ -237,10 +238,10 @@ final class Pos
         return Db::all($sql . ' ORDER BY p.id DESC LIMIT ' . (int) $limit, $p);
     }
 
-    /** Ringkasan: omzet, laba kotor, jumlah transaksi (tanpa yang dibatalkan). $userId = hanya transaksi kasir itu. */
+    /** Ringkasan penjualan barang (tanpa top up & yang dibatalkan): omzet, laba kotor, jumlah transaksi. $userId = hanya transaksi kasir itu. */
     public static function ringkas(string $dari, string $sampai, ?string $unit, ?int $userId = null): array
     {
-        $w = 'p.dibatalkan = 0 AND p.tanggal >= ? AND p.tanggal <= ?';
+        $w = "p.dibatalkan = 0 AND p.jenis = 'barang' AND p.tanggal >= ? AND p.tanggal <= ?";
         $p = [$dari, $sampai];
         if ($unit) { $w .= ' AND p.unit = ?'; $p[] = $unit; }
         if ($userId) { $w .= ' AND p.user_id = ?'; $p[] = $userId; }
@@ -263,7 +264,7 @@ final class Pos
     {
         $out = [];
         for ($i = $hari - 1; $i >= 0; $i--) { $out[date('Y-m-d', strtotime("-$i days"))] = 0; }
-        $sql = 'SELECT tanggal, SUM(total) AS t FROM penjualan WHERE dibatalkan = 0 AND tanggal >= ?'; $p = [array_key_first($out)];
+        $sql = "SELECT tanggal, SUM(total) AS t FROM penjualan WHERE dibatalkan = 0 AND jenis = 'barang' AND tanggal >= ?"; $p = [array_key_first($out)];
         if ($unit) { $sql .= ' AND unit = ?'; $p[] = $unit; }
         if ($userId) { $sql .= ' AND user_id = ?'; $p[] = $userId; }
         foreach (Db::all($sql . ' GROUP BY tanggal', $p) as $r) { $out[$r['tanggal']] = (int) $r['t']; }
