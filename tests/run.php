@@ -429,6 +429,30 @@ ok('kasir level 2: batal hanya struk sendiri hari ini', Pos::bolehBatal(['user_i
 $_SESSION = [];
 (new ReflectionProperty('Auth', 'cache'))->setValue(null, null);
 
+// ---------- top up e-money ----------
+$sDana = Emoney::simpanSumber('Deposit DANA', 50000, null, null);
+throws('produk tanpa deposit valid ditolak', fn() => Emoney::simpanProduk(['nama' => 'X', 'jenis' => 'dompet', 'sumber_id' => 999, 'nominal_min' => 10000, 'nominal_maks' => 100000, 'aktif' => 1], null, null));
+$pDana = Emoney::simpanProduk(['nama' => 'DANA', 'jenis' => 'dompet', 'sumber_id' => $sDana, 'biaya_admin' => '2.000', 'biaya_modal' => '1.000', 'nominal_min' => '10.000', 'nominal_maks' => '1.000.000', 'aktif' => '1'], null, null);
+throws('top up ditolak bila deposit kurang', fn() => Emoney::topup($pDana, '081234567890', '', 50000, 'tunai', '', $k1));
+Emoney::ubahDeposit($sDana, 200000, 'isi', '', null);
+throws('nominal di bawah minimal ditolak', fn() => Emoney::topup($pDana, '081234567890', '', 5000, 'tunai', '', $k1));
+throws('bon tidak boleh untuk top up', fn() => Emoney::topup($pDana, '081234567890', '', 50000, 'hutang', '', $k1));
+$hari0 = date('Y-m-d');
+$cb0 = LaporanPos::caraBayar($hari0, $hari0); $rk0 = LaporanPos::ringkasan($hari0, $hari0);
+$idT = Emoney::topup($pDana, '0812-3456-7890', 'Budi', 50000, 'tunai', 'REF123', $k1);
+$pt = Pos::find($idT);
+ok('top up jadi transaksi harian', $pt['jenis'] === 'topup' && (int) $pt['total'] === 52000 && str_starts_with($pt['no_struk'], 'PJ-') && $pt['tanggal'] === $hari0);
+ok('saldo deposit terpotong nominal + biaya modal', (int) Db::val('SELECT saldo FROM emoney_sumber WHERE id = ?', [$sDana]) === 200000 - 51000);
+$tr = Emoney::trx($idT);
+ok('rincian top up tersimpan', $tr['no_tujuan'] === '081234567890' && (int) $tr['nominal'] === 50000 && (int) $tr['modal'] === 51000 && $tr['ref_penyedia'] === 'REF123');
+$cb1 = LaporanPos::caraBayar($hari0, $hari0); $rk1 = LaporanPos::ringkasan($hari0, $hari0);
+ok('top up masuk uang cash, bukan omzet barang', $cb1['tunai']['topup'] - $cb0['tunai']['topup'] === 52000 && $cb1['tunai']['terima'] - $cb0['tunai']['terima'] === 52000 && $rk1['omzet'] === $rk0['omzet']
+    && $rk1['topup_n'] - $rk0['topup_n'] === 1 && $rk1['topup_laba'] - $rk0['topup_laba'] === 1000 && $rk1['topup_admin'] - $rk0['topup_admin'] === 2000);
+ok('top up tampil di rincian harian dan daftar transaksi', LaporanPos::perHari($hari0, $hari0)[$hari0]['topup'] >= 52000 && in_array($idT, array_map('intval', array_column(LaporanPos::transaksi($hari0, $hari0), 'id')), true));
+ok('laporan top up per kasir', count(Emoney::laporan($hari0, $hari0, $k1)) === 1 && count(Emoney::laporan($hari0, $hari0, $k2)) === 0);
+Pos::batalkan($idT, 'salah nomor', $k1, null);
+ok('batal top up mengembalikan deposit', (int) Db::val('SELECT saldo FROM emoney_sumber WHERE id = ?', [$sDana]) === 200000 && count(Emoney::laporan($hari0, $hari0)) === 0);
+throws('koreksi deposit tanpa alasan ditolak', fn() => Emoney::ubahDeposit($sDana, -1000, 'koreksi', '', null));
 
 echo $fail === 0 ? "\nSemua uji lulus.\n" : "\n$fail uji GAGAL.\n";
 exit($fail === 0 ? 0 : 1);

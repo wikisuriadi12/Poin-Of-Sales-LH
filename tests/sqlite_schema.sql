@@ -14,7 +14,7 @@ CREATE TABLE stok (barang_id INT, unit TEXT, qty INT DEFAULT 0, PRIMARY KEY (bar
 CREATE TABLE stok_mutasi (id INTEGER PRIMARY KEY AUTOINCREMENT, barang_id INT, unit TEXT, tipe TEXT, qty INT, stok_setelah INT, harga_beli INT, pemasok TEXT DEFAULT '', ref_id INT, catatan TEXT DEFAULT '', user_id INT, created_at TEXT);
 CREATE TABLE dompet (santri_id INT PRIMARY KEY, saldo INT DEFAULT 0);
 CREATE TABLE dompet_mutasi (id INTEGER PRIMARY KEY AUTOINCREMENT, santri_id INT, tipe TEXT, jumlah INT, saldo_setelah INT, ref_id INT, catatan TEXT DEFAULT '', user_id INT, created_at TEXT);
-CREATE TABLE penjualan (id INTEGER PRIMARY KEY AUTOINCREMENT, no_struk TEXT DEFAULT '', tanggal TEXT, unit TEXT, santri_id INT, total INT, metode TEXT, dibayar INT DEFAULT 0, dibatalkan INT DEFAULT 0, alasan_batal TEXT, user_id INT, created_at TEXT, diskon INT DEFAULT 0, pelanggan TEXT, bukti_qris TEXT);
+CREATE TABLE penjualan (id INTEGER PRIMARY KEY AUTOINCREMENT, no_struk TEXT DEFAULT '', tanggal TEXT, unit TEXT, santri_id INT, total INT, metode TEXT, dibayar INT DEFAULT 0, dibatalkan INT DEFAULT 0, alasan_batal TEXT, user_id INT, created_at TEXT, diskon INT DEFAULT 0, pelanggan TEXT, bukti_qris TEXT, jenis TEXT DEFAULT 'barang');
 CREATE TABLE penjualan_item (id INTEGER PRIMARY KEY AUTOINCREMENT, konsinyasi TEXT, penjualan_id INT, barang_id INT, nama TEXT, qty INT, harga INT, harga_beli INT DEFAULT 0, subtotal INT);
 
 CREATE TABLE va_billing (id INTEGER PRIMARY KEY AUTOINCREMENT, trx_id TEXT UNIQUE, santri_id INT, virtual_account TEXT, jumlah INT, status TEXT DEFAULT 'menunggu', expired_at TEXT, dibayar_at TEXT, ntb TEXT, kelebihan INT DEFAULT 0, mode TEXT DEFAULT 'simulasi', dibuat_oleh INT, created_at TEXT);
@@ -72,3 +72,7 @@ CREATE TABLE hutang_bayar (id INTEGER PRIMARY KEY AUTOINCREMENT, jenis TEXT, hut
 
 CREATE TABLE piutang (id INTEGER PRIMARY KEY AUTOINCREMENT, penjualan_id INT UNIQUE, santri_id INT, nama TEXT, total INT, dibayar INT DEFAULT 0, jatuh_tempo TEXT, status TEXT DEFAULT 'belum', created_at TEXT);
 CREATE TABLE piutang_bayar (id INTEGER PRIMARY KEY AUTOINCREMENT, piutang_id INT, jumlah INT, tanggal TEXT, metode TEXT DEFAULT 'tunai', catatan TEXT DEFAULT '', user_id INT, created_at TEXT);
+CREATE TABLE emoney_sumber (id INTEGER PRIMARY KEY AUTOINCREMENT, nama TEXT, saldo INT DEFAULT 0, saldo_min INT DEFAULT 0, aktif INT DEFAULT 1, created_at TEXT);
+CREATE TABLE emoney_produk (id INTEGER PRIMARY KEY AUTOINCREMENT, nama TEXT, jenis TEXT DEFAULT 'dompet', sumber_id INT, biaya_admin INT DEFAULT 0, biaya_modal INT DEFAULT 0, nominal_min INT DEFAULT 10000, nominal_maks INT DEFAULT 2000000, aktif INT DEFAULT 1, created_at TEXT);
+CREATE TABLE emoney_mutasi (id INTEGER PRIMARY KEY AUTOINCREMENT, sumber_id INT, tipe TEXT, jumlah INT, saldo_setelah INT, ref_id INT, catatan TEXT DEFAULT '', user_id INT, created_at TEXT);
+CREATE TABLE emoney_trx (id INTEGER PRIMARY KEY AUTOINCREMENT, penjualan_id INT UNIQUE, produk_id INT, sumber_id INT, no_tujuan TEXT, nama_pelanggan TEXT DEFAULT '', nominal INT, biaya_admin INT DEFAULT 0, modal INT, ref_penyedia TEXT DEFAULT '', user_id INT, created_at TEXT);
