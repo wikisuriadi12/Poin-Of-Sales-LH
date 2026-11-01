@@ -411,6 +411,20 @@ ok('kasir level 1: tanpa modal, dompet, edit gudang', !Auth::can('harga_beli') &
 $sebagai($k2);
 ok('kasir level 2: jual & laporan penjualan', Auth::can('pos') && Auth::can('penjualan') && Domain::sistemBoleh('pos', 'kasir2'));
 ok('kasir level 2: tanpa piutang, stok, label, barang', !Auth::can('piutang') && !Auth::can('gudang.view') && !Auth::can('barang.tambah') && !Auth::can('barang.masuk') && !Auth::can('dompet'));
+$tg = '2031-01-15'; // tanggal khusus agar tidak tercampur data uji lain
+foreach ([[$k1, 1000, 'tunai'], [$k1, 2000, 'qris'], [$k2, 5000, 'tunai']] as $i => [$uid, $tot, $mt]) {
+    Db::insert('INSERT INTO penjualan (no_struk, tanggal, unit, santri_id, total, metode, dibayar, dibatalkan, user_id, created_at) VALUES (?,?,?,?,?,?,?,0,?,?)', ['UJI-K' . $i, $tg, 'ikhwan', null, $tot, $mt, $tot, $uid, $tg . ' 08:00:00']);
+}
+ok('kasir hanya melihat transaksinya sendiri', Pos::hanyaKasir() === $k2 && array_column(Pos::daftar(['dari' => $tg, 'sampai' => $tg, 'user' => Pos::hanyaKasir()], null), 'no_struk') === ['UJI-K2'] && Pos::ringkas($tg, $tg, null, $k2)['omzet'] === 5000);
+LaporanPos::$kasir = $k1;
+$lk1 = LaporanPos::ringkasan($tg, $tg); $ck1 = LaporanPos::caraBayar($tg, $tg);
+ok('laporan kasir 1 hanya transaksinya', $lk1['n'] === 2 && $lk1['omzet'] === 3000 && $ck1['tunai']['jual'] === 1000 && $ck1['qris']['jual'] === 2000 && count(LaporanPos::transaksi($tg, $tg)) === 2);
+LaporanPos::$kasir = null;
+ok('admin/global melihat semua kasir', LaporanPos::ringkasan($tg, $tg)['omzet'] === 8000 && count(LaporanPos::perKasir($tg, $tg)) === 2);
+$sebagai($ua);
+ok('admin tidak dibatasi', Pos::hanyaKasir() === null);
+$sebagai($k2);
+Db::exec("DELETE FROM penjualan WHERE no_struk LIKE 'UJI-K%'");
 ok('kasir level 2: batal hanya struk sendiri hari ini', Pos::bolehBatal(['user_id' => $k2, 'tanggal' => date('Y-m-d')]) && !Pos::bolehBatal(['user_id' => $k1, 'tanggal' => date('Y-m-d')]) && !Pos::bolehBatal(['user_id' => $k2, 'tanggal' => '2020-01-01']));
 $_SESSION = [];
 (new ReflectionProperty('Auth', 'cache'))->setValue(null, null);
