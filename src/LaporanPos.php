@@ -24,14 +24,39 @@ final class LaporanPos
         return ['n' => $n, 'omzet' => (int) $r['omzet'], 'laba' => $k['laba'], 'qty' => $qty, 'diskon' => $diskon, 'rata' => $n > 0 ? intdiv((int) $r['omzet'], $n) : 0, 'batal_n' => (int) $batal['n'], 'batal_nilai' => (int) $batal['nilai']];
     }
 
-    /** @return array<string,array{n:int,omzet:int}> tanggal => data, termasuk hari tanpa penjualan */
+    /** Kelompok cara bayar di laporan (kunci = penjualan.metode). Pelunasan bon transfer masuk ke qris. */
+    public const CARA_BAYAR = ['tunai' => 'Cash', 'qris' => 'QRIS / Transfer', 'hutang' => 'Hutang / Bon', 'dompet' => 'Saldo santri'];
+
+    /** @return array<string,array{n:int,omzet:int,tunai:int,qris:int,hutang:int,dompet:int}> tanggal => data, termasuk hari tanpa penjualan */
     public static function perHari(string $dari, string $sampai): array
     {
         $out = [];
-        for ($t = strtotime($dari), $akhir = strtotime($sampai), $i = 0; $t <= $akhir && $i < 400; $t += 86400, $i++) { $out[date('Y-m-d', $t)] = ['n' => 0, 'omzet' => 0]; }
-        foreach (Db::all('SELECT p.tanggal, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE ' . self::SAH . ' GROUP BY p.tanggal', [$dari, $sampai]) as $r) {
-            if (isset($out[$r['tanggal']])) { $out[$r['tanggal']] = ['n' => (int) $r['n'], 'omzet' => (int) $r['omzet']]; }
+        $kosong = ['n' => 0, 'omzet' => 0] + array_fill_keys(array_keys(self::CARA_BAYAR), 0);
+        for ($t = strtotime($dari), $akhir = strtotime($sampai), $i = 0; $t <= $akhir && $i < 400; $t += 86400, $i++) { $out[date('Y-m-d', $t)] = $kosong; }
+        foreach (Db::all('SELECT p.tanggal, p.metode, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE ' . self::SAH . ' GROUP BY p.tanggal, p.metode', [$dari, $sampai]) as $r) {
+            if (!isset($out[$r['tanggal']])) { continue; }
+            $out[$r['tanggal']]['n'] += (int) $r['n'];
+            $out[$r['tanggal']]['omzet'] += (int) $r['omzet'];
+            if (isset(self::CARA_BAYAR[$r['metode']])) { $out[$r['tanggal']][$r['metode']] += (int) $r['omzet']; }
         }
+        return $out;
+    }
+
+    /**
+     * Pemisahan uang per cara bayar: penjualan (menurut metode kasir) dan pelunasan bon (menurut tanggal & cara bayar pelunasan).
+     * @return array<string,array{n:int,jual:int,lunas:int,terima:int}> kunci CARA_BAYAR
+     */
+    public static function caraBayar(string $dari, string $sampai): array
+    {
+        $out = array_fill_keys(array_keys(self::CARA_BAYAR), ['n' => 0, 'jual' => 0, 'lunas' => 0, 'terima' => 0]);
+        foreach (self::perMetode($dari, $sampai) as $r) {
+            if (isset($out[$r['metode']])) { $out[$r['metode']]['n'] = (int) $r['n']; $out[$r['metode']]['jual'] = (int) $r['omzet']; }
+        }
+        try {
+            $lunas = Db::all("SELECT b.metode, SUM(b.jumlah) AS jml FROM piutang_bayar b JOIN piutang p ON p.id = b.piutang_id WHERE p.status <> 'batal' AND b.tanggal >= ? AND b.tanggal <= ? GROUP BY b.metode", [$dari, $sampai]);
+        } catch (Throwable $e) { $lunas = []; } // kolom metode belum dimigrasi
+        foreach ($lunas as $r) { $out[$r['metode'] === 'transfer' ? 'qris' : 'tunai']['lunas'] += (int) $r['jml']; }
+        foreach (['tunai', 'qris'] as $k) { $out[$k]['terima'] = $out[$k]['jual'] + $out[$k]['lunas']; }
         return $out;
     }
 
