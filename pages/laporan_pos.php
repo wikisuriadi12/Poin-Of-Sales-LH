@@ -2,7 +2,7 @@
 $bolehJual = Auth::can('penjualan'); $bolehStok = Auth::can('gudang.view');
 if (!$bolehJual && !$bolehStok) { Auth::require('penjualan'); }
 $tabs = [];
-if ($bolehJual) { $tabs += ['ringkasan' => 'Ringkasan', 'penjualan' => 'Transaksi', 'produk' => 'Per Produk', 'kategori' => 'Per Kategori', 'pelanggan' => 'Per Pelanggan', 'hutang' => 'Pembelian Hutang', 'kasir' => 'Per Kasir']; }
+if ($bolehJual) { $tabs += ['ringkasan' => 'Ringkasan', 'penjualan' => 'Transaksi', 'produk' => 'Per Produk', 'kategori' => 'Per Kategori', 'pelanggan' => 'Per Pelanggan', 'hutang' => 'Pembelian Hutang', 'topup' => 'Top Up E-Money', 'kasir' => 'Per Kasir']; }
 $lihatBeli = Auth::can('harga_beli');
 LaporanPos::$kasir = Pos::hanyaKasir(); // kasir: hanya transaksinya sendiri; admin/bendahara/pimpinan: semua
 if ($bolehStok) { $tabs += ($lihatBeli ? ['masuk' => 'Barang Masuk'] : []) + ['stok' => 'Posisi Stok', 'mutasi' => 'Mutasi Stok']; }
@@ -24,9 +24,10 @@ $judul = $tabs[$tab]; $kolom = []; $baris = []; $kpi = []; $extra = ''; $bawah =
 switch ($tab) {
     case 'ringkasan':
         $r = LaporanPos::ringkasan($dari, $sampai);
-        $kpi = [['Transaksi', (string) $r['n'], 'receipt', ''], ['Omzet', rp($r['omzet']), 'wallet', 'c-ok'], ['Rata-rata per transaksi', rp($r['rata']), 'tag', ''],
-            ['Barang terjual', (string) $r['qty'], 'box', ''], ['Diskon diberikan', rp($r['diskon']), 'tag', 'c-acc'], ['Transaksi dibatalkan', $r['batal_n'] . ' (' . rp($r['batal_nilai']) . ')', 'alert', 'c-acc']];
-        if ($lihatBeli) { array_splice($kpi, 2, 0, [['Laba kotor', rp($r['laba']), 'trending-up', 'c-info']]); }
+        $kpi = [['Transaksi barang', (string) $r['n'], 'receipt', ''], ['Omzet barang', rp($r['omzet']), 'wallet', 'c-ok'], ['Rata-rata per transaksi', rp($r['rata']), 'tag', ''],
+            ['Barang terjual', (string) $r['qty'], 'box', ''], ['Diskon diberikan', rp($r['diskon']), 'tag', 'c-acc'], ['Transaksi dibatalkan', $r['batal_n'] . ' (' . rp($r['batal_nilai']) . ')', 'alert', 'c-acc'],
+            ['Top up e-money', $r['topup_n'] . ' (' . rp($r['topup_total']) . ')', 'credit-card', 'c-info'], ['Pendapatan admin top up', rp($r['topup_admin']), 'wallet', 'c-ok']];
+        if ($lihatBeli) { array_splice($kpi, 2, 0, [['Laba kotor', rp($r['laba']), 'trending-up', 'c-info']]); $kpi[] = ['Laba top up', rp($r['topup_laba']), 'trending-up', 'c-info']; }
         $hari = LaporanPos::perHari($dari, $sampai);
         $grafik = [];
         foreach ($hari as $d => $v) { $grafik[substr($d, 8) . '/' . substr($d, 5, 2)] = $v['omzet']; }
@@ -34,22 +35,25 @@ switch ($tab) {
         // Pemisahan cara bayar: Cash, QRIS/Transfer, Hutang/Bon (Saldo santri hanya bila dipakai)
         $cb = LaporanPos::caraBayar($dari, $sampai);
         $tampil = array_filter(array_keys($cb), static fn($k) => $k !== 'dompet' || $cb[$k]['jual'] > 0);
-        $extra = '<h3>Pemisahan cara bayar</h3><div class="scroll"><table class="rt"><thead><tr><th>Cara bayar</th><th class="r">Transaksi</th><th class="r">Penjualan</th><th class="r">Pelunasan bon</th><th class="r">Uang diterima</th></tr></thead><tbody>';
+        $extra = '<h3>Pemisahan cara bayar</h3><div class="scroll"><table class="rt"><thead><tr><th>Cara bayar</th><th class="r">Transaksi</th><th class="r">Penjualan barang</th><th class="r">Top up e-money</th><th class="r">Pelunasan bon</th><th class="r">Uang diterima</th></tr></thead><tbody>';
         foreach ($tampil as $k) {
             $c = $cb[$k]; $uang = in_array($k, ['tunai', 'qris'], true);
-            $extra .= '<tr><td><b>' . e($metodeNama[$k]) . '</b></td><td class="r" data-label="Transaksi">' . $c['n'] . '</td><td class="r" data-label="Penjualan">' . rp($c['jual']) . '</td>'
+            $extra .= '<tr><td><b>' . e($metodeNama[$k]) . '</b></td><td class="r" data-label="Transaksi">' . $c['n'] . '</td><td class="r" data-label="Penjualan barang">' . rp($c['jual']) . '</td>'
+                . '<td class="r" data-label="Top up e-money">' . ($uang ? rp($c['topup']) : '-') . '</td>'
                 . '<td class="r" data-label="Pelunasan bon">' . ($uang ? rp($c['lunas']) : '-') . '</td><td class="r" data-label="Uang diterima">' . ($uang ? '<b>' . rp($c['terima']) . '</b>' : '<span class="mut">' . ($k === 'hutang' ? 'belum dibayar' : 'dari saldo') . '</span>') . '</td></tr>';
         }
-        $extra .= '<tr><td><b>Total uang diterima</b></td><td></td><td></td><td></td><td class="r"><b>' . rp($cb['tunai']['terima'] + $cb['qris']['terima']) . '</b></td></tr></tbody></table></div>'
+        $extra .= '<tr><td><b>Total uang diterima</b></td><td></td><td></td><td></td><td></td><td class="r"><b>' . rp($cb['tunai']['terima'] + $cb['qris']['terima']) . '</b></td></tr></tbody></table></div>'
             . '<p class="mut" style="margin:6px 0 14px">Pelunasan bon dihitung menurut tanggal bayar dan cara bayarnya (cash atau transfer).</p>';
         $extra .= '<h3>Omzet per hari</h3>' . Charts::bars($grafik, 'Omzet per hari');
         $kolom = ['Tanggal' => 'tgl', 'Transaksi' => 'n'];
         foreach ($tampil as $k) { $kolom[$metodeNama[$k]] = 'rp'; }
-        $kolom['Omzet'] = 'rp';
+        $kolom['Top up e-money'] = 'rp';
+        $kolom['Omzet barang'] = 'rp';
         foreach (array_reverse($hari, true) as $d => $v) {
             if ($v['n'] === 0) { continue; }
             $b = [$d, $v['n']];
             foreach ($tampil as $k) { $b[] = $v[$k]; }
+            $b[] = $v['topup'];
             $b[] = $v['omzet'];
             $baris[] = $b;
         }
@@ -59,16 +63,34 @@ switch ($tab) {
         break;
     case 'penjualan':
         $rows = LaporanPos::transaksi($dari, $sampai, isset($metodeNama[$f['metode']]) ? $f['metode'] : '', isset($jenisNama[$f['jenis']]) ? $f['jenis'] : '', $f['kasir'], $f['status']);
-        $kolom = ['No. struk' => 't', 'Waktu' => 't', 'Pelanggan' => 't', 'Metode' => 't', 'Total' => 'rp', 'Status' => 't', 'Kasir' => 't'];
+        $kolom = ['No. struk' => 't', 'Waktu' => 't', 'Pelanggan' => 't', 'Jenis' => 't', 'Metode' => 't', 'Total' => 'rp', 'Status' => 't', 'Kasir' => 't'];
         $tot = 0;
         foreach ($rows as $x) {
             $pel = $x['santri_nama'] ?? (($x['pelanggan'] ?? '') !== '' ? $x['pelanggan'] : 'Umum');
-            $baris[] = [$x['no_struk'], substr((string) $x['created_at'], 0, 16), $pel, $metodeNama[$x['metode']] ?? $x['metode'], (int) $x['total'], (int) $x['dibatalkan'] ? 'Batal' : 'Sah', $x['kasir'] ?? '-', (int) $x['id']];
+            $baris[] = [$x['no_struk'], substr((string) $x['created_at'], 0, 16), $pel, ($x['jenis'] ?? 'barang') === 'topup' ? 'Top up' : 'Barang', $metodeNama[$x['metode']] ?? $x['metode'], (int) $x['total'], (int) $x['dibatalkan'] ? 'Batal' : 'Sah', $x['kasir'] ?? '-', (int) $x['id']];
             if (!(int) $x['dibatalkan']) { $tot += (int) $x['total']; }
         }
         $kpi = [['Jumlah transaksi', (string) count($rows), 'receipt', ''], ['Total (tidak termasuk batal)', rp($tot), 'wallet', 'c-ok']];
-        $aksiBaris = static fn($b) => '<a class="btn sm ghost" href="?p=struk&amp;id=' . (int) $b[7] . '">Struk</a>';
+        $aksiBaris = static fn($b) => '<a class="btn sm ghost" href="?p=struk&amp;id=' . (int) $b[8] . '">Struk</a>';
         $bawah = rincian_bayar($rows);
+        break;
+    case 'topup':
+        $rows = Emoney::laporan($dari, $sampai, LaporanPos::$kasir);
+        // Kolom laba hanya untuk akun yang boleh melihat modal; id struk selalu di kolom terakhir.
+        $kolom = ['Tanggal' => 'tgl', 'No. struk' => 't', 'Produk' => 't', 'Tujuan' => 't', 'Nominal' => 'rp', 'Admin' => 'rp', 'Dibayar' => 'rp'] + ($lihatBeli ? ['Laba top up' => 'rp'] : []) + ['Metode' => 't', 'Kasir' => 't'];
+        $tn = 0; $ta = 0; $tl = 0; $perProduk = [];
+        foreach ($rows as $x) {
+            $laba = (int) $x['total'] - (int) $x['modal'];
+            $tn += (int) $x['nominal']; $ta += (int) $x['biaya_admin']; $tl += $laba;
+            $perProduk[$x['produk_nama']] = ($perProduk[$x['produk_nama']] ?? 0) + (int) $x['nominal'];
+            $baris[] = array_merge([$x['tanggal'], $x['no_struk'], $x['produk_nama'], $x['no_tujuan'], (int) $x['nominal'], (int) $x['biaya_admin'], (int) $x['total']], $lihatBeli ? [$laba] : [], [$metodeNama[$x['metode']] ?? $x['metode'], $x['kasir'] ?? '-', (int) $x['penjualan_id']]);
+        }
+        $kpi = [['Transaksi top up', (string) count($rows), 'credit-card', ''], ['Total nominal', rp($tn), 'wallet', 'c-info'], ['Pendapatan admin', rp($ta), 'wallet', 'c-ok']];
+        if ($lihatBeli) { $kpi[] = ['Laba top up', rp($tl), 'trending-up', 'c-info']; }
+        arsort($perProduk);
+        $extra = $perProduk ? '<h3>Nominal per produk</h3>' . Charts::hbars($perProduk, 'rp') . '<h3 style="margin-top:12px">Rincian top up</h3>' : '';
+        $aksiBaris = static fn($b) => '<a class="btn sm ghost" href="?p=struk&amp;id=' . (int) end($b) . '">Struk</a>';
+        $pesanKosong = 'Belum ada top up pada rentang ini.';
         break;
     case 'produk':
         $rows = LaporanPos::produk($dari, $sampai, $f['urut']);
