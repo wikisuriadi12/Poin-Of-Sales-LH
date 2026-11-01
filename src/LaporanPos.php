@@ -4,7 +4,19 @@ declare(strict_types=1);
 /** Kueri laporan LH Mart (penjualan, produk, kategori, kasir, stok, mutasi). Hanya membaca data. */
 final class LaporanPos
 {
-    private const SAH = 'p.dibatalkan = 0 AND p.tanggal >= ? AND p.tanggal <= ?';
+    /** Bila diisi, semua laporan penjualan hanya memuat transaksi kasir ini (lihat Pos::hanyaKasir). */
+    public static ?int $kasir = null;
+
+    private static function filterKasir(string $kolom = 'p.user_id'): string
+    {
+        return self::$kasir ? ' AND ' . $kolom . ' = ' . (int) self::$kasir : '';
+    }
+
+    /** Transaksi sah pada rentang [?, ?] (dan milik kasir bila dibatasi). */
+    private static function sah(): string
+    {
+        return 'p.dibatalkan = 0 AND p.tanggal >= ? AND p.tanggal <= ?' . self::filterKasir();
+    }
 
     private static function jenisSql(): string
     {
@@ -14,12 +26,12 @@ final class LaporanPos
     public static function ringkasan(string $dari, string $sampai): array
     {
         $p = [$dari, $sampai];
-        $r = Db::one('SELECT COUNT(*) AS n, COALESCE(SUM(p.total),0) AS omzet FROM penjualan p WHERE ' . self::SAH, $p);
-        $qty = (int) Db::val('SELECT COALESCE(SUM(i.qty),0) FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id WHERE ' . self::SAH, $p);
-        $batal = Db::one('SELECT COUNT(*) AS n, COALESCE(SUM(p.total),0) AS nilai FROM penjualan p WHERE p.dibatalkan = 1 AND p.tanggal >= ? AND p.tanggal <= ?', $p);
+        $r = Db::one('SELECT COUNT(*) AS n, COALESCE(SUM(p.total),0) AS omzet FROM penjualan p WHERE ' . self::sah(), $p);
+        $qty = (int) Db::val('SELECT COALESCE(SUM(i.qty),0) FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id WHERE ' . self::sah(), $p);
+        $batal = Db::one('SELECT COUNT(*) AS n, COALESCE(SUM(p.total),0) AS nilai FROM penjualan p WHERE p.dibatalkan = 1 AND p.tanggal >= ? AND p.tanggal <= ?' . self::filterKasir(), $p);
         $diskon = 0;
-        try { $diskon = (int) Db::val('SELECT COALESCE(SUM(p.diskon),0) FROM penjualan p WHERE ' . self::SAH, $p); } catch (Throwable $e) { /* kolom belum ada */ }
-        $k = Pos::ringkas($dari, $sampai, null);
+        try { $diskon = (int) Db::val('SELECT COALESCE(SUM(p.diskon),0) FROM penjualan p WHERE ' . self::sah(), $p); } catch (Throwable $e) { /* kolom belum ada */ }
+        $k = Pos::ringkas($dari, $sampai, null, self::$kasir);
         $n = (int) $r['n'];
         return ['n' => $n, 'omzet' => (int) $r['omzet'], 'laba' => $k['laba'], 'qty' => $qty, 'diskon' => $diskon, 'rata' => $n > 0 ? intdiv((int) $r['omzet'], $n) : 0, 'batal_n' => (int) $batal['n'], 'batal_nilai' => (int) $batal['nilai']];
     }
@@ -33,7 +45,7 @@ final class LaporanPos
         $out = [];
         $kosong = ['n' => 0, 'omzet' => 0] + array_fill_keys(array_keys(self::CARA_BAYAR), 0);
         for ($t = strtotime($dari), $akhir = strtotime($sampai), $i = 0; $t <= $akhir && $i < 400; $t += 86400, $i++) { $out[date('Y-m-d', $t)] = $kosong; }
-        foreach (Db::all('SELECT p.tanggal, p.metode, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE ' . self::SAH . ' GROUP BY p.tanggal, p.metode', [$dari, $sampai]) as $r) {
+        foreach (Db::all('SELECT p.tanggal, p.metode, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE ' . self::sah() . ' GROUP BY p.tanggal, p.metode', [$dari, $sampai]) as $r) {
             if (!isset($out[$r['tanggal']])) { continue; }
             $out[$r['tanggal']]['n'] += (int) $r['n'];
             $out[$r['tanggal']]['omzet'] += (int) $r['omzet'];
@@ -53,7 +65,7 @@ final class LaporanPos
             if (isset($out[$r['metode']])) { $out[$r['metode']]['n'] = (int) $r['n']; $out[$r['metode']]['jual'] = (int) $r['omzet']; }
         }
         try {
-            $lunas = Db::all("SELECT b.metode, SUM(b.jumlah) AS jml FROM piutang_bayar b JOIN piutang p ON p.id = b.piutang_id WHERE p.status <> 'batal' AND b.tanggal >= ? AND b.tanggal <= ? GROUP BY b.metode", [$dari, $sampai]);
+            $lunas = Db::all("SELECT b.metode, SUM(b.jumlah) AS jml FROM piutang_bayar b JOIN piutang p ON p.id = b.piutang_id WHERE p.status <> 'batal' AND b.tanggal >= ? AND b.tanggal <= ?" . self::filterKasir('b.user_id') . ' GROUP BY b.metode', [$dari, $sampai]);
         } catch (Throwable $e) { $lunas = []; } // kolom metode belum dimigrasi
         foreach ($lunas as $r) { $out[$r['metode'] === 'transfer' ? 'qris' : 'tunai']['lunas'] += (int) $r['jml']; }
         foreach (['tunai', 'qris'] as $k) { $out[$k]['terima'] = $out[$k]['jual'] + $out[$k]['lunas']; }
@@ -62,22 +74,23 @@ final class LaporanPos
 
     public static function perMetode(string $dari, string $sampai): array
     {
-        return Db::all('SELECT p.metode, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE ' . self::SAH . ' GROUP BY p.metode ORDER BY omzet DESC', [$dari, $sampai]);
+        return Db::all('SELECT p.metode, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE ' . self::sah() . ' GROUP BY p.metode ORDER BY omzet DESC', [$dari, $sampai]);
     }
 
     public static function perJenis(string $dari, string $sampai): array
     {
         $j = self::jenisSql();
         try {
-            return Db::all("SELECT $j AS jenis, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE " . self::SAH . " GROUP BY $j ORDER BY omzet DESC", [$dari, $sampai]);
+            return Db::all("SELECT $j AS jenis, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE " . self::sah() . " GROUP BY $j ORDER BY omzet DESC", [$dari, $sampai]);
         } catch (Throwable $e) {
-            return Db::all("SELECT CASE WHEN p.santri_id IS NOT NULL THEN 'santri' ELSE 'umum' END AS jenis, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE " . self::SAH . ' GROUP BY 1', [$dari, $sampai]);
+            return Db::all("SELECT CASE WHEN p.santri_id IS NOT NULL THEN 'santri' ELSE 'umum' END AS jenis, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p WHERE " . self::sah() . ' GROUP BY 1', [$dari, $sampai]);
         }
     }
 
     public static function transaksi(string $dari, string $sampai, string $metode = '', string $jenis = '', int $kasir = 0, string $status = 'sah'): array
     {
         $w = 'p.tanggal >= ? AND p.tanggal <= ?'; $a = [$dari, $sampai];
+        if (self::$kasir) { $kasir = self::$kasir; }
         if ($status === 'sah') { $w .= ' AND p.dibatalkan = 0'; } elseif ($status === 'batal') { $w .= ' AND p.dibatalkan = 1'; }
         if ($metode !== '') { $w .= ' AND p.metode = ?'; $a[] = $metode; }
         if ($kasir > 0) { $w .= ' AND p.user_id = ?'; $a[] = $kasir; }
@@ -90,23 +103,23 @@ final class LaporanPos
     public static function produk(string $dari, string $sampai, string $urut = 'qty'): array
     {
         $o = ['qty' => 'qty', 'omzet' => 'omzet', 'laba' => 'laba'][$urut] ?? 'qty';
-        return Db::all('SELECT i.barang_id, i.nama, SUM(i.qty) AS qty, SUM(i.subtotal) AS omzet, SUM(i.subtotal - i.qty * i.harga_beli) AS laba FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id WHERE ' . self::SAH . " GROUP BY i.barang_id, i.nama ORDER BY $o DESC, i.nama LIMIT 500", [$dari, $sampai]);
+        return Db::all('SELECT i.barang_id, i.nama, SUM(i.qty) AS qty, SUM(i.subtotal) AS omzet, SUM(i.subtotal - i.qty * i.harga_beli) AS laba FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id WHERE ' . self::sah() . " GROUP BY i.barang_id, i.nama ORDER BY $o DESC, i.nama LIMIT 500", [$dari, $sampai]);
     }
 
     /** Barang di Market yang tidak terjual sama sekali pada rentang. */
     public static function tidakLaku(string $dari, string $sampai): array
     {
-        return Db::all('SELECT b.kode, b.nama, b.kategori, s.qty FROM barang b JOIN stok s ON s.barang_id = b.id AND s.unit = ? WHERE b.aktif = 1 AND b.id NOT IN (SELECT i.barang_id FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id WHERE ' . self::SAH . ') ORDER BY s.qty DESC, b.nama LIMIT 300', array_merge([Pos::TOKO], [$dari, $sampai]));
+        return Db::all('SELECT b.kode, b.nama, b.kategori, s.qty FROM barang b JOIN stok s ON s.barang_id = b.id AND s.unit = ? WHERE b.aktif = 1 AND b.id NOT IN (SELECT i.barang_id FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id WHERE ' . self::sah() . ') ORDER BY s.qty DESC, b.nama LIMIT 300', array_merge([Pos::TOKO], [$dari, $sampai]));
     }
 
     public static function kategori(string $dari, string $sampai): array
     {
-        return Db::all("SELECT COALESCE(NULLIF(b.kategori, ''), 'Lainnya') AS kategori, SUM(i.qty) AS qty, SUM(i.subtotal) AS omzet, SUM(i.subtotal - i.qty * i.harga_beli) AS laba FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id JOIN barang b ON b.id = i.barang_id WHERE " . self::SAH . ' GROUP BY 1 ORDER BY omzet DESC', [$dari, $sampai]);
+        return Db::all("SELECT COALESCE(NULLIF(b.kategori, ''), 'Lainnya') AS kategori, SUM(i.qty) AS qty, SUM(i.subtotal) AS omzet, SUM(i.subtotal - i.qty * i.harga_beli) AS laba FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id JOIN barang b ON b.id = i.barang_id WHERE " . self::sah() . ' GROUP BY 1 ORDER BY omzet DESC', [$dari, $sampai]);
     }
 
     public static function perKasir(string $dari, string $sampai): array
     {
-        return Db::all("SELECT COALESCE(u.nama, '-') AS kasir, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p LEFT JOIN users u ON u.id = p.user_id WHERE " . self::SAH . ' GROUP BY u.id, u.nama ORDER BY omzet DESC', [$dari, $sampai]);
+        return Db::all("SELECT COALESCE(u.nama, '-') AS kasir, COUNT(*) AS n, SUM(p.total) AS omzet FROM penjualan p LEFT JOIN users u ON u.id = p.user_id WHERE " . self::sah() . ' GROUP BY u.id, u.nama ORDER BY omzet DESC', [$dari, $sampai]);
     }
 
     /** Posisi stok sekarang per lokasi dengan nilai modal & nilai jual. */

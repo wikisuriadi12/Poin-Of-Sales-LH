@@ -41,6 +41,7 @@ final class Auth
         'va' => ['admin', 'bendahara', 'pimpinan'],
         'va.edit' => ['admin', 'bendahara'],
         'penjualan' => ['admin', 'kasir', 'kasir2', 'bendahara', 'pimpinan'],
+        'penjualan.semua' => ['admin', 'bendahara', 'pimpinan'], // kasir hanya melihat transaksinya sendiri (Pos::hanyaKasir)
     ];
 
     public const IDLE = 7200;

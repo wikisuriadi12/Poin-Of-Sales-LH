@@ -58,9 +58,12 @@ final class Piutang
     }
 
     /** Rekap pembelian hutang pada rentang tanggal penjualan (untuk laporan). */
-    public static function laporan(string $dari, string $sampai): array
+    public static function laporan(string $dari, string $sampai, ?int $userId = null): array
     {
-        return Db::all("SELECT p.*, j.no_struk, j.tanggal FROM piutang p JOIN penjualan j ON j.id = p.penjualan_id WHERE p.status <> 'batal' AND j.tanggal >= ? AND j.tanggal <= ? ORDER BY j.id DESC LIMIT 2000", [$dari, $sampai]);
+        $a = [$dari, $sampai];
+        $w = $userId ? ' AND j.user_id = ?' : '';
+        if ($userId) { $a[] = $userId; }
+        return Db::all("SELECT p.*, j.no_struk, j.tanggal FROM piutang p JOIN penjualan j ON j.id = p.penjualan_id WHERE p.status <> 'batal' AND j.tanggal >= ? AND j.tanggal <= ?$w ORDER BY j.id DESC LIMIT 2000", $a);
     }
 
     public static function items(int $penjualanId): array { return Pos::items($penjualanId); }

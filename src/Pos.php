@@ -12,6 +12,12 @@ final class Pos
     /** Batas diskon (persen dari subtotal) untuk akun tanpa izin diskon.bebas. */
     public const DISKON_MAKS_KASIR = 15;
 
+    /** Riwayat & laporan: id kasir bila akun hanya boleh melihat transaksinya sendiri; null = semua (admin, bendahara, pimpinan). */
+    public static function hanyaKasir(): ?int
+    {
+        return Auth::can('penjualan.semua') ? null : Auth::id();
+    }
+
     /** Boleh membatalkan? admin/bendahara: semua; kasir: hanya penjualannya sendiri pada hari yang sama. */
     public static function bolehBatal(array $p): bool
     {
@@ -219,7 +225,7 @@ final class Pos
         });
     }
 
-    /** @param array{dari?:string,sampai?:string,unit?:string,metode?:string} $f */
+    /** @param array{dari?:string,sampai?:string,unit?:string,metode?:string,user?:?int} $f */
     public static function daftar(array $f, ?string $scope, int $limit = 200): array
     {
         $sql = 'SELECT p.*, s.nama AS santri_nama, u.nama AS kasir FROM penjualan p LEFT JOIN santri s ON s.id = p.santri_id LEFT JOIN users u ON u.id = p.user_id WHERE p.tanggal >= ? AND p.tanggal <= ?';
@@ -227,35 +233,40 @@ final class Pos
         $unit = $scope ?? ($f['unit'] ?? '');
         if ($unit !== '') { $sql .= ' AND p.unit = ?'; $p[] = $unit; }
         if (!empty($f['metode'])) { $sql .= ' AND p.metode = ?'; $p[] = $f['metode']; }
+        if (!empty($f['user'])) { $sql .= ' AND p.user_id = ?'; $p[] = (int) $f['user']; }
         return Db::all($sql . ' ORDER BY p.id DESC LIMIT ' . (int) $limit, $p);
     }
 
-    /** Ringkasan: omzet, laba kotor, jumlah transaksi (tanpa yang dibatalkan). */
-    public static function ringkas(string $dari, string $sampai, ?string $unit): array
+    /** Ringkasan: omzet, laba kotor, jumlah transaksi (tanpa yang dibatalkan). $userId = hanya transaksi kasir itu. */
+    public static function ringkas(string $dari, string $sampai, ?string $unit, ?int $userId = null): array
     {
         $w = 'p.dibatalkan = 0 AND p.tanggal >= ? AND p.tanggal <= ?';
         $p = [$dari, $sampai];
         if ($unit) { $w .= ' AND p.unit = ?'; $p[] = $unit; }
+        if ($userId) { $w .= ' AND p.user_id = ?'; $p[] = $userId; }
         $r = Db::one("SELECT COUNT(*) AS n, COALESCE(SUM(p.total),0) AS omzet FROM penjualan p WHERE $w", $p);
         $laba = (int) Db::val("SELECT COALESCE(SUM(i.subtotal - i.qty * i.harga_beli),0) FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id WHERE $w", $p);
         try { $laba -= (int) Db::val("SELECT COALESCE(SUM(p.diskon),0) FROM penjualan p WHERE $w", $p); } catch (Throwable $e) { /* kolom diskon belum dimigrasi */ }
         return ['n' => (int) $r['n'], 'omzet' => (int) $r['omzet'], 'laba' => $laba];
     }
 
-    public static function terlaris(string $dari, string $sampai, ?string $unit, int $limit = 8): array
+    public static function terlaris(string $dari, string $sampai, ?string $unit, int $limit = 8, ?int $userId = null): array
     {
         $w = 'p.dibatalkan = 0 AND p.tanggal >= ? AND p.tanggal <= ?';
         $p = [$dari, $sampai];
         if ($unit) { $w .= ' AND p.unit = ?'; $p[] = $unit; }
+        if ($userId) { $w .= ' AND p.user_id = ?'; $p[] = $userId; }
         return Db::all("SELECT i.nama, SUM(i.qty) AS qty, SUM(i.subtotal) AS omzet FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id WHERE $w GROUP BY i.barang_id, i.nama ORDER BY qty DESC LIMIT " . (int) $limit, $p);
     }
 
-    public static function perHari(int $hari, ?string $unit): array
+    public static function perHari(int $hari, ?string $unit, ?int $userId = null): array
     {
         $out = [];
         for ($i = $hari - 1; $i >= 0; $i--) { $out[date('Y-m-d', strtotime("-$i days"))] = 0; }
-        $sql = 'SELECT tanggal, SUM(total) AS t FROM penjualan WHERE dibatalkan = 0 AND tanggal >= ?' . ($unit ? ' AND unit = ?' : '') . ' GROUP BY tanggal';
-        foreach (Db::all($sql, $unit ? [array_key_first($out), $unit] : [array_key_first($out)]) as $r) { $out[$r['tanggal']] = (int) $r['t']; }
+        $sql = 'SELECT tanggal, SUM(total) AS t FROM penjualan WHERE dibatalkan = 0 AND tanggal >= ?'; $p = [array_key_first($out)];
+        if ($unit) { $sql .= ' AND unit = ?'; $p[] = $unit; }
+        if ($userId) { $sql .= ' AND user_id = ?'; $p[] = $userId; }
+        foreach (Db::all($sql . ' GROUP BY tanggal', $p) as $r) { $out[$r['tanggal']] = (int) $r['t']; }
         return $out;
     }
 }
