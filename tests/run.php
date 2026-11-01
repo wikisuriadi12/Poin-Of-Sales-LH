@@ -291,6 +291,10 @@ Piutang::bayar((int) $pH['id'], (int) $pH['total'] - 1000, date('Y-m-d'), '', nu
 ok('piutang lunas', Db::val('SELECT status FROM piutang WHERE id = ?', [$pH['id']]) === 'lunas' && Piutang::ringkasan() === []);
 $byH = array_column(Piutang::pembayaran('Budi Santoso'), 'metode');
 ok('cara bayar bon tercatat (bawaan cash, lalu transfer)', $byH === ['transfer', 'tunai']);
+$cbT = LaporanPos::caraBayar(date('Y-m-d'), date('Y-m-d'));
+ok('laporan cara bayar: pelunasan bon cash dan transfer terpisah', $cbT['tunai']['lunas'] === 1000 && $cbT['qris']['lunas'] === (int) $pH['total'] - 1000);
+ok('laporan cara bayar: uang diterima = penjualan + pelunasan, bon tidak dihitung', $cbT['tunai']['terima'] === $cbT['tunai']['jual'] + 1000 && $cbT['hutang']['jual'] >= (int) $pH['total'] && $cbT['hutang']['terima'] === 0);
+ok('rincian harian dipisah per cara bayar', LaporanPos::perHari(date('Y-m-d'), date('Y-m-d'))[date('Y-m-d')]['hutang'] >= (int) $pH['total']);
 $idH2 = Pos::jual('ikhwan', null, [$b1 => 1], 'hutang', 0, null, null, 0, 'Pegawai: Rina');
 ok('hutang pegawai memakai harga pegawai bila ada', (int) Db::val('SELECT total FROM penjualan WHERE id = ?', [$idH2]) > 0);
 Pos::batalkan($idH2, 'uji', null, null);
