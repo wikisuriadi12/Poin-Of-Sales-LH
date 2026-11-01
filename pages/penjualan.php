@@ -43,7 +43,7 @@ ob_start(); ?>
     <tbody>
     <?php foreach ($rows as $r): ?>
       <tr><td><b><?= e($r['no_struk']) ?></b></td><td data-label="Tanggal"><?= e($r['tanggal']) ?></td>
-        <td data-label="Pelanggan"><?= e($r['santri_nama'] ?? (($r['pelanggan'] ?? '') !== '' ? $r['pelanggan'] : 'Umum')) ?></td><td data-label="Metode"><?= ['tunai' => 'Tunai', 'dompet' => 'Dompet', 'qris' => 'QRIS', 'hutang' => 'Hutang (bon)'][$r['metode']] ?? e($r['metode']) ?></td>
+        <td data-label="Pelanggan"><?= e($r['santri_nama'] ?? (($r['pelanggan'] ?? '') !== '' ? $r['pelanggan'] : 'Umum')) ?></td><td data-label="Metode"><?= e(LaporanPos::CARA_BAYAR[$r['metode']] ?? $r['metode']) ?></td>
         <td class="r" data-label="Total"><?= rp($r['total']) ?></td>
         <td data-label="Status"><?= $r['dibatalkan'] ? '<span class="badge b-belum">Batal</span>' : '<span class="badge b-lunas">Sah</span>' ?></td>
         <td class="r"><a class="btn sm ghost" href="?p=struk&amp;id=<?= (int) $r['id'] ?>">Struk</a></td></tr>
@@ -51,5 +51,6 @@ ob_start(); ?>
     <?php if (!$rows): ?><tr><td colspan="8" class="empty">Tidak ada transaksi pada rentang ini.</td></tr><?php endif; ?>
     </tbody>
   </table></div>
+  <?= rincian_bayar($rows) ?>
 </div>
 <?php render('Penjualan', ob_get_clean());

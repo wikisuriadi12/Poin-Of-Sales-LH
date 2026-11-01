@@ -19,7 +19,7 @@ $f = ['metode' => in_str('metode'), 'jenis' => in_str('jenis'), 'kasir' => (int)
 $stokLok = $f['lok'] !== '' ? $f['lok'] : Pos::TOKO;
 
 // Setiap tab mengisi: $judul, $kolom [label => jenis(t|n|rp|tgl|rp_b)], $baris (nilai mentah), $kpi, $extra
-$judul = $tabs[$tab]; $kolom = []; $baris = []; $kpi = []; $extra = ''; $aksiBaris = null; $pesanKosong = 'Tidak ada data pada rentang ini.';
+$judul = $tabs[$tab]; $kolom = []; $baris = []; $kpi = []; $extra = ''; $bawah = ''; $aksiBaris = null; $pesanKosong = 'Tidak ada data pada rentang ini.';
 switch ($tab) {
     case 'ringkasan':
         $r = LaporanPos::ringkasan($dari, $sampai);
@@ -67,6 +67,7 @@ switch ($tab) {
         }
         $kpi = [['Jumlah transaksi', (string) count($rows), 'receipt', ''], ['Total (tidak termasuk batal)', rp($tot), 'wallet', 'c-ok']];
         $aksiBaris = static fn($b) => '<a class="btn sm ghost" href="?p=struk&amp;id=' . (int) $b[7] . '">Struk</a>';
+        $bawah = rincian_bayar($rows);
         break;
     case 'produk':
         $rows = LaporanPos::produk($dari, $sampai, $f['urut']);
@@ -186,6 +187,7 @@ ob_start(); ?>
   <div class="scroll"><table class="rt"><thead><tr><?php foreach ($kolom as $lb => $j): ?><th class="<?= in_array($j, ['n', 'rp'], true) ? 'r' : '' ?>"><?= e($lb) ?></th><?php endforeach; ?><?= $aksiBaris ? '<th></th>' : '' ?></tr></thead><tbody>
   <?php foreach ($baris as $b): ?><tr><?php $i = 0; foreach ($kolom as $lb => $j): ?><td class="<?= in_array($j, ['n', 'rp'], true) ? 'r' : '' ?>" data-label="<?= e($lb) ?>"><?= $fmtSel($b[$i], $j) ?></td><?php $i++; endforeach; ?><?= $aksiBaris ? '<td class="r">' . $aksiBaris($b) . '</td>' : '' ?></tr><?php endforeach; ?>
   <?php if (!$baris): ?><tr><td colspan="<?= $nKol + 1 ?>" class="empty"><?= e($pesanKosong) ?></td></tr><?php endif; ?></tbody></table></div>
+  <?= $bawah ?>
   <?php if (count($baris) >= 1000): ?><p class="mut">Menampilkan batas maksimum baris. Persempit rentang tanggal atau ekspor CSV.</p><?php endif; ?>
 </div>
 <?php render('Laporan LH Mart', ob_get_clean());
