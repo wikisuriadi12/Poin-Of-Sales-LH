@@ -2,6 +2,7 @@
 Auth::require('penjualan');
 $scope = Auth::scope();
 $p = Pos::find((int) in_str('id', '0'));
+if ($p && ($milik = Pos::hanyaKasir()) && (int) $p['user_id'] !== $milik) { $p = null; } // kasir hanya struk miliknya
 if (!$p) { http_response_code(404); render('Tidak ditemukan', '<div class="card"><div class="empty">Struk tidak ditemukan.</div></div>'); exit; }
 Auth::assertUnit($p['unit']);
 $items = Pos::items((int) $p['id']);

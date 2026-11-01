@@ -4,6 +4,7 @@ if (!$bolehJual && !$bolehStok) { Auth::require('penjualan'); }
 $tabs = [];
 if ($bolehJual) { $tabs += ['ringkasan' => 'Ringkasan', 'penjualan' => 'Transaksi', 'produk' => 'Per Produk', 'kategori' => 'Per Kategori', 'pelanggan' => 'Per Pelanggan', 'hutang' => 'Pembelian Hutang', 'kasir' => 'Per Kasir']; }
 $lihatBeli = Auth::can('harga_beli');
+LaporanPos::$kasir = Pos::hanyaKasir(); // kasir: hanya transaksinya sendiri; admin/bendahara/pimpinan: semua
 if ($bolehStok) { $tabs += ($lihatBeli ? ['masuk' => 'Barang Masuk'] : []) + ['stok' => 'Posisi Stok', 'mutasi' => 'Mutasi Stok']; }
 $tab = isset($tabs[in_str('tab')]) ? in_str('tab') : array_key_first($tabs);
 $dari = Domain::validDate(in_str('dari')) ? in_str('dari') : date('Y-m-01');
@@ -96,7 +97,7 @@ switch ($tab) {
             . implode('', array_map(static fn($x) => '<tr><td>' . e($metodeNama[$x['metode']] ?? $x['metode']) . '</td><td class="r">' . (int) $x['n'] . '</td><td class="r">' . rp($x['omzet']) . '</td></tr>', $mm)) . ($mm ? '' : '<tr><td colspan="3" class="empty">Belum ada.</td></tr>') . '</tbody></table></div><h3 style="margin-top:12px">Per jenis pelanggan</h3>';
         break;
     case 'hutang':
-        $rows = Piutang::laporan($dari, $sampai);
+        $rows = Piutang::laporan($dari, $sampai, LaporanPos::$kasir);
         $kolom = ['Tanggal' => 'tgl', 'No. struk' => 't', 'Pelanggan' => 't', 'Total bon' => 'rp', 'Dibayar' => 'rp', 'Sisa' => 'rp', 'Jatuh tempo' => 't', 'Status' => 't'];
         $tb = 0; $td = 0; $perNama = [];
         $stNama = ['belum' => 'Belum bayar', 'sebagian' => 'Sebagian', 'lunas' => 'Lunas'];
@@ -160,10 +161,10 @@ if (in_str('csv') === '1') {
     exit;
 }
 $qs = static fn(array $x = []) => '?' . http_build_query(array_filter(['p' => 'laporan_pos', 'tab' => $GLOBALS['tab'], 'dari' => $GLOBALS['dari'], 'sampai' => $GLOBALS['sampai'], 'metode' => $GLOBALS['f']['metode'], 'jenis' => $GLOBALS['f']['jenis'], 'kasir' => $GLOBALS['f']['kasir'] ?: '', 'status' => $GLOBALS['f']['status'], 'urut' => $GLOBALS['f']['urut'], 'lok' => $GLOBALS['f']['lok'], 'pemasok' => $GLOBALS['f']['pemasok'], 'stokf' => $GLOBALS['f']['stokf'], 'tipe' => $GLOBALS['f']['tipe']] + $x, static fn($v) => $v !== '' && $v !== null));
-$kasirList = $tab === 'penjualan' ? Db::all('SELECT id, nama FROM users WHERE role IN (\'kasir\',\'kasir2\',\'admin\') ORDER BY nama') : [];
+$kasirList = $tab === 'penjualan' && !LaporanPos::$kasir ? Db::all('SELECT id, nama FROM users WHERE role IN (\'kasir\',\'kasir2\',\'admin\') ORDER BY nama') : [];
 $fmtSel = static fn($v, $jenis) => match ($jenis) { 'rp' => rp($v), 'n' => number_format((int) $v, 0, ',', '.'), 'tgl' => date('d/m/Y', strtotime((string) $v)), default => e((string) $v) };
 ob_start(); ?>
-<div class="page-h"><div><h1>Laporan LH Mart</h1><p>Periode <?= e(date('d/m/Y', strtotime($dari))) ?> s/d <?= e(date('d/m/Y', strtotime($sampai))) ?>. Hanya transaksi sah yang dihitung kecuali disebut lain.</p></div>
+<div class="page-h"><div><h1>Laporan LH Mart</h1><p>Periode <?= e(date('d/m/Y', strtotime($dari))) ?> s/d <?= e(date('d/m/Y', strtotime($sampai))) ?>. Hanya transaksi sah yang dihitung kecuali disebut lain.<?= LaporanPos::$kasir ? ' <b>Hanya transaksi Anda.</b>' : '' ?></p></div>
   <div class="acts"><a class="btn ghost" href="<?= e($qs(['csv' => 1])) ?>"><?= icon('download') ?> Ekspor CSV</a><button type="button" class="btn ghost" onclick="window.print()"><?= icon('receipt') ?> Cetak</button></div></div>
 <div class="tabs" style="margin-bottom:12px;flex-wrap:wrap"><?php foreach ($tabs as $k => $v): ?><a class="<?= $tab === $k ? 'on' : '' ?>" href="?p=laporan_pos&amp;tab=<?= e($k) ?>&amp;dari=<?= e($dari) ?>&amp;sampai=<?= e($sampai) ?>"><?= e($v) ?></a><?php endforeach; ?></div>
 <div class="card">
@@ -173,7 +174,7 @@ ob_start(); ?>
     <?php if ($tab === 'penjualan'): ?>
       <select name="metode"><option value="">Semua metode</option><?= options($metodeNama, $f['metode']) ?></select>
       <select name="jenis"><option value="">Semua pelanggan</option><?= options($jenisNama, $f['jenis']) ?></select>
-      <select name="kasir"><option value="0">Semua kasir</option><?php foreach ($kasirList as $k): ?><option value="<?= (int) $k['id'] ?>" <?= $f['kasir'] === (int) $k['id'] ? 'selected' : '' ?>><?= e($k['nama']) ?></option><?php endforeach; ?></select>
+      <?php if ($kasirList): ?><select name="kasir"><option value="0">Semua kasir</option><?php foreach ($kasirList as $k): ?><option value="<?= (int) $k['id'] ?>" <?= $f['kasir'] === (int) $k['id'] ? 'selected' : '' ?>><?= e($k['nama']) ?></option><?php endforeach; ?></select><?php endif; ?>
       <select name="status"><?= options(['sah' => 'Hanya sah', 'batal' => 'Hanya batal', 'semua' => 'Semua'], $f['status']) ?></select>
     <?php elseif ($tab === 'produk'): ?><select name="urut"><?= options(['qty' => 'Urut jumlah terjual', 'omzet' => 'Urut omzet'] + ($lihatBeli ? ['laba' => 'Urut laba'] : []), $f['urut']) ?></select>
     <?php elseif ($tab === 'masuk'): ?><select name="lok"><option value="">Semua lokasi</option><?= options(Pos::LOKASI, $f['lok']) ?></select>
