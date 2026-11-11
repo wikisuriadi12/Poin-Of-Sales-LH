@@ -208,6 +208,7 @@ function topnav(string $cur): string
         ['gudang', 'Stok', 'box', Auth::can('gudang.view'), $rendah],
         ['barang_masuk', 'Barang masuk', 'plus', Auth::can('barang.masuk'), 0],
         ['piutang', 'Bon', 'receipt', Auth::can('piutang') || Auth::can('laporan'), 0],
+        ['petty', 'Petty Cash', 'wallet', Auth::can('petty.view'), 0],
         ['hutang', 'Hutang supplier', 'wallet', Auth::can('gudang.edit') || Auth::can('laporan'), 0],
         ['dompet', 'Dompet santri', 'wallet', Auth::can('dompet'), 0],
         ['emoney', 'Deposit e-money', 'wallet', Auth::can('emoney.deposit') || Auth::can('emoney.produk'), 0],

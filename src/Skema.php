@@ -37,6 +37,7 @@ final class Skema
             ['label' => 'piutang_bayar.metode (cash/transfer)', 'ok' => $kolom('piutang_bayar', 'metode'), 'file' => 'migrasi-bayar-bon-metode.sql'],
             ['label' => 'penjualan.jenis (barang / top up)', 'ok' => $kolom('penjualan', 'jenis'), 'file' => 'migrasi-emoney.sql'],
             ['label' => 'tabel top up e-money', 'ok' => $tabel('emoney_trx') && $tabel('emoney_sumber') && $tabel('emoney_produk') && $tabel('emoney_mutasi'), 'file' => 'migrasi-emoney.sql'],
+            ['label' => 'tabel Petty Cash', 'ok' => $tabel('petty_akun') && $tabel('petty_kas'), 'file' => 'migrasi-petty-cash.sql'],
             ['label' => 'users.role mengenal Kasir Level 2', 'ok' => $enum('users', 'role', 'kasir2'), 'file' => 'migrasi-kasir-level.sql'],
         ];
     }

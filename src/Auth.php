@@ -31,6 +31,9 @@ final class Auth
         'barang.tambah' => ['admin', 'gudang', 'kasir'], // kasir: barang baru saja, tanpa harga modal
         'barang.masuk' => ['admin', 'gudang', 'kasir'], // kasir: hanya ke Market, tunai, tanpa harga beli
         'harga_beli' => ['admin', 'gudang', 'bendahara', 'pimpinan'], // kasir tidak boleh melihat modal/laba
+        'petty.view' => ['admin', 'bendahara', 'gudang', 'pimpinan'], // lihat saldo & riwayat Petty Cash
+        'petty.belanja' => ['admin', 'bendahara', 'gudang'], // belanja memakai uang Petty Cash (termasuk belanja stok)
+        'petty.isi' => ['admin', 'bendahara'], // isi/koreksi/batalkan saldo
         'dompet' => ['admin', 'bendahara'], // bayar dengan saldo di kasir tetap lewat izin pos
         'dompet.topup' => ['admin', 'bendahara'], // kasir tidak boleh menambah saldo (mencegah saldo fiktif)
         'dompet.koreksi' => ['admin', 'bendahara'],

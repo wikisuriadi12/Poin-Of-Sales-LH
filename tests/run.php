@@ -456,5 +456,33 @@ Pos::batalkan($idT, 'salah nomor', $k1, null);
 ok('batal top up mengembalikan deposit', (int) Db::val('SELECT saldo FROM emoney_sumber WHERE id = ?', [$sDana]) === 200000 && count(Emoney::laporan($hari0, $hari0)) === 0);
 throws('koreksi deposit tanpa alasan ditolak', fn() => Emoney::ubahDeposit($sDana, -1000, 'koreksi', '', null));
 
+
+// --- Petty Cash ---
+$pb = Gudang::simpanBarang(Gudang::validateBarang(['kode' => 'PTY1', 'nama' => 'Barang Petty', 'harga_jual' => '9000'])[0], null, null);
+ok('petty: saldo awal 0', Petty::saldo() === 0);
+throws('petty: belanja stok ditolak saat saldo kurang', fn() => Gudang::masukBanyak(Pos::GUDANG, 'Toko A', '', [[$pb, 10, 5000]], null, 'petty'));
+ok('petty: stok tidak berubah saat ditolak (rollback)', Gudang::stok($pb, Pos::GUDANG) === 0 && Petty::saldo() === 0);
+Petty::isi(1000000, 'Pengambilan kas', null);
+ok('petty: isi saldo', Petty::saldo() === 1000000);
+Gudang::masukBanyak(Pos::GUDANG, 'Toko A', 'Faktur 1', [[$pb, 10, 5000]], null, 'petty', null, 'F1');
+ok('petty: belanja stok masuk gudang dan saldo berkurang', Gudang::stok($pb, Pos::GUDANG) === 10 && Petty::saldo() === 950000);
+ok('petty: tercatat sebagai belanja_stok', (int) Db::val("SELECT COUNT(*) FROM petty_kas WHERE tipe = 'belanja_stok' AND jumlah = -50000") === 1);
+throws('petty: belanja stok tanpa harga beli ditolak', fn() => Gudang::masukBanyak(Pos::GUDANG, 'Toko A', '', [[$pb, 1, 0]], null, 'petty'));
+Petty::belanja(25000, 'ATK', 'Kertas struk', 'Toko ATK', null);
+ok('petty: belanja non-stok mengurangi saldo', Petty::saldo() === 925000);
+throws('petty: belanja melebihi saldo ditolak', fn() => Petty::belanja(5000000, 'ATK', 'Besar', '', null));
+throws('petty: belanja tanpa keterangan ditolak', fn() => Petty::belanja(1000, 'ATK', '', '', null));
+$idB = (int) Db::val("SELECT id FROM petty_kas WHERE tipe = 'belanja' ORDER BY id DESC LIMIT 1");
+Petty::batalkan($idB, null);
+ok('petty: batal belanja mengembalikan saldo', Petty::saldo() === 950000);
+throws('petty: batal dua kali ditolak', fn() => Petty::batalkan($idB, null));
+$idS = (int) Db::val("SELECT id FROM petty_kas WHERE tipe = 'belanja_stok' ORDER BY id DESC LIMIT 1");
+throws('petty: belanja stok tidak bisa dibatalkan di sini', fn() => Petty::batalkan($idS, null));
+Petty::koreksi(-10000, 'Selisih hitung', null);
+ok('petty: koreksi saldo', Petty::saldo() === 940000);
+throws('petty: koreksi tanpa alasan ditolak', fn() => Petty::koreksi(100, '', null));
+$rg = Petty::ringkasan(date('Y-m-d'), date('Y-m-d'));
+ok('petty: ringkasan', $rg['isi'] === 1000000 && $rg['belanja_stok'] === -50000);
+
 echo $fail === 0 ? "\nSemua uji lulus.\n" : "\n$fail uji GAGAL.\n";
 exit($fail === 0 ? 0 : 1);

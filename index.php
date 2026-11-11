@@ -25,7 +25,7 @@ $routes = [
     'gudang' => 'gudang', 'gudang_item' => 'gudang_item', 'barang' => 'barang', 'akun_pos' => 'akun_pos', 'label' => 'label',
     'impor_stok' => 'impor_stok', 'barang_masuk' => 'barang_masuk', 'bukti_qris' => 'bukti_qris', 'qris_buat' => 'qris_buat',
     'qris_status' => 'qris_status', 'qris_callback' => 'qris_callback', 'piutang' => 'piutang', 'hutang' => 'hutang', 'db_cek' => 'db_cek',
-    'laporan_pos' => 'laporan_pos', 'laporan_stok' => 'laporan_stok', 'topup' => 'topup', 'emoney' => 'emoney',
+    'laporan_pos' => 'laporan_pos', 'laporan_stok' => 'laporan_stok', 'topup' => 'topup', 'emoney' => 'emoney', 'petty' => 'petty',
 ];
 $hostSis = Host::sistem();
 $bawaan = 'pos';

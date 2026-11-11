@@ -17,9 +17,11 @@ if (is_post()) {
     }
     try {
         $faktur = in_str('faktur');
-        $jenis = $penuh && in_array(in_str('jenis'), ['tunai', 'hutang', 'konsinyasi'], true) ? in_str('jenis') : 'tunai';
+        $bolehPetty = $penuh && Auth::can('petty.belanja');
+        $jenis = $penuh && in_array(in_str('jenis'), ['tunai', 'hutang', 'konsinyasi', 'petty'], true) ? in_str('jenis') : 'tunai';
+        if ($jenis === 'petty' && !$bolehPetty) { throw new InvalidArgumentException('Akses Petty Cash ditolak.'); }
         $n = Gudang::masukBanyak($lok, in_str('pemasok'), trim(($faktur !== '' ? 'Faktur ' . $faktur . '. ' : '') . in_str('catatan')), $baris, Auth::id(), $jenis, in_str('jatuh_tempo') ?: null, $faktur);
-        flash($n . ' item masuk ke stok ' . Pos::LOKASI[$lok] . ' dari ' . trim(in_str('pemasok')) . ['tunai' => '.', 'hutang' => ' (dicatat sebagai hutang).', 'konsinyasi' => ' (konsinyasi: dibayar setelah terjual).'][$jenis]);
+        flash($n . ' item masuk ke stok ' . Pos::LOKASI[$lok] . ' dari ' . trim(in_str('pemasok')) . ['tunai' => '.', 'hutang' => ' (dicatat sebagai hutang).', 'konsinyasi' => ' (konsinyasi: dibayar setelah terjual).', 'petty' => ' (dibayar dari Petty Cash, sisa saldo ' . rp(Petty::saldo()) . ').'][$jenis]);
         redirect('?p=barang_masuk&lok=' . $lok);
     } catch (InvalidArgumentException $ex) { flash($ex->getMessage(), 'err'); $unit = $lok; }
 }
@@ -34,7 +36,7 @@ ob_start(); ?>
     <label>Masuk ke <select name="lok"><?= options($lokasi, $unit) ?></select></label>
     <label>Nama supplier <input name="pemasok" list="dl-pemasok" required maxlength="100" value="<?= e(in_str('pemasok')) ?>" placeholder="Ketik atau pilih supplier"></label>
     <label>No. faktur / surat jalan <input name="faktur" maxlength="60" placeholder="Opsional" value="<?= e(in_str('faktur')) ?>"></label>
-    <label>Jenis pembelian <select name="jenis" id="bm-jenis"><?= options($penuh ? ['tunai' => 'Tunai / lunas', 'hutang' => 'Hutang (bayar nanti)', 'konsinyasi' => 'Konsinyasi (titipan)'] : ['tunai' => 'Tunai / lunas'], in_str('jenis') ?: 'tunai') ?></select></label>
+    <label>Jenis pembelian <select name="jenis" id="bm-jenis"><?= options($penuh ? ['tunai' => 'Tunai / lunas'] + (Auth::can('petty.belanja') ? ['petty' => 'Petty Cash (potong saldo kas kecil)'] : []) + ['hutang' => 'Hutang (bayar nanti)', 'konsinyasi' => 'Konsinyasi (titipan)'] : ['tunai' => 'Tunai / lunas'], in_str('jenis') ?: 'tunai') ?></select></label>
     <label id="bm-tempo" style="display:none">Jatuh tempo hutang <input type="date" name="jatuh_tempo" value="<?= e(in_str('jatuh_tempo')) ?>"></label>
   </div>
   <p class="mut" id="bm-info" style="margin:0 0 8px;display:none"></p>
@@ -55,7 +57,7 @@ ob_start(); ?>
   </tbody></table></div></div>
 <script>
 (function () {
-  var opsi = <?= json_encode($opsi) ?>, modal = <?= $modal ? 'true' : 'false' ?>, tb = document.querySelector('#bm-t tbody');
+  var saldoPetty = <?= json_encode(Auth::can('petty.view') ? rp(Petty::saldo()) : '-') ?>, opsi = <?= json_encode($opsi) ?>, modal = <?= $modal ? 'true' : 'false' ?>, tb = document.querySelector('#bm-t tbody');
   function baris() {
     var tr = document.createElement('tr');
     tr.innerHTML = '<td><select name="barang_id[]">' + opsi + '</select></td><td class="r"><input name="qty[]" inputmode="numeric" style="width:90px;text-align:right"></td>' +
@@ -70,7 +72,7 @@ ob_start(); ?>
   function jenis() {
     tp.style.display = jn.value === 'hutang' ? '' : 'none';
     inf.style.display = jn.value === 'tunai' ? 'none' : '';
-    inf.textContent = jn.value === 'hutang' ? 'Hutang: harga beli wajib diisi. Total tercatat sebagai hutang ke supplier dan dibayar lewat menu Hutang Supplier.' : (jn.value === 'konsinyasi' ? 'Konsinyasi: harga beli = harga setor per unit ke supplier. Tidak ada hutang saat barang masuk; hutang muncul hanya untuk barang yang terjual.' : '');
+    inf.textContent = jn.value === 'petty' ? 'Petty Cash: harga beli wajib diisi. Total belanja memotong saldo Petty Cash (saldo sekarang ' + saldoPetty + ') dan ditolak bila saldo kurang.' : jn.value === 'hutang' ? 'Hutang: harga beli wajib diisi. Total tercatat sebagai hutang ke supplier dan dibayar lewat menu Hutang Supplier.' : (jn.value === 'konsinyasi' ? 'Konsinyasi: harga beli = harga setor per unit ke supplier. Tidak ada hutang saat barang masuk; hutang muncul hanya untuk barang yang terjual.' : '');
   }
   jn.addEventListener('change', jenis); jenis();
   for (var i = 0; i < 5; i++) { baris(); }

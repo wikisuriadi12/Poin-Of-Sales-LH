@@ -206,7 +206,7 @@ final class Gudang
     /** Catat barang masuk dari beberapa item sekaligus (satu pemasok), all-or-nothing. @param array<int,array{0:int,1:int,2:int}> $baris [barang_id, qty, harga_beli] */
     public static function masukBanyak(string $unit, string $pemasok, string $catatan, array $baris, ?int $userId, string $jenis = 'tunai', ?string $jatuhTempo = null, string $faktur = ''): int
     {
-        if (!in_array($jenis, ['tunai', 'hutang', 'konsinyasi'], true)) { throw new InvalidArgumentException('Jenis pembelian tidak valid.'); }
+        if (!in_array($jenis, ['tunai', 'hutang', 'konsinyasi', 'petty'], true)) { throw new InvalidArgumentException('Jenis pembelian tidak valid.'); }
         self::cekUnit($unit, null);
         $pemasok = trim($pemasok);
         if ($pemasok === '') { throw new InvalidArgumentException('Nama supplier wajib diisi.'); }
@@ -217,7 +217,7 @@ final class Gudang
             if ((int) $b[1] < 1 || (int) $b[1] > 1000000) { throw new InvalidArgumentException('Baris ' . ($i + 1) . ': jumlah harus 1 atau lebih.'); }
         }
         if ($jenis !== 'tunai') {
-            foreach ($baris as $i => $b) { if ((int) $b[2] < 1) { throw new InvalidArgumentException('Baris ' . ($i + 1) . ': harga beli wajib diisi untuk pembelian ' . ($jenis === 'hutang' ? 'hutang' : 'konsinyasi (harga setor ke supplier)') . '.'); } }
+            foreach ($baris as $i => $b) { if ((int) $b[2] < 1) { throw new InvalidArgumentException('Baris ' . ($i + 1) . ': harga beli wajib diisi untuk pembelian ' . ($jenis === 'petty' ? 'dari Petty Cash' : ($jenis === 'hutang' ? 'hutang' : 'konsinyasi (harga setor ke supplier)')) . '.'); } }
         }
         if ($jatuhTempo !== null && $jatuhTempo !== '' && !Domain::validDate($jatuhTempo)) { throw new InvalidArgumentException('Tanggal jatuh tempo tidak valid.'); }
         $pemasok = mb_substr($pemasok, 0, 100);
@@ -241,6 +241,10 @@ final class Gudang
                 self::ubah($id, $unit, $qty, 'masuk', ['harga_beli' => $hb, 'pemasok' => $pemasok, 'catatan' => ($jenis === 'konsinyasi' ? '[Konsinyasi] ' : '') . $catatan, 'user_id' => $userId, 'ref_id' => $hid]);
                 if ($hb > 0) { Db::exec('UPDATE barang SET harga_beli = ? WHERE id = ?', [$hb, $id]); }
                 if ($jenis === 'konsinyasi') { Db::exec('UPDATE barang SET konsinyasi_pemasok = ? WHERE id = ?', [$pemasok, $id]); }
+            }
+            if ($jenis === 'petty') {
+                $tot = 0; foreach ($baris as $b) { $tot += (int) $b[1] * (int) $b[2]; }
+                Petty::ubah(-$tot, 'belanja_stok', 'Belanja stok', trim(count($baris) . ' item ke ' . Pos::LOKASI[$unit] . ($faktur !== '' ? ', faktur ' . $faktur : '') . '. ' . $catatan), $pemasok, $userId);
             }
             Db::audit($userId, 'masuk', 'stok', null, "$unit " . count($baris) . ' item dari ' . $pemasok . ' (' . $jenis . ')');
         });

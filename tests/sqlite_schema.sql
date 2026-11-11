@@ -76,3 +76,6 @@ CREATE TABLE emoney_sumber (id INTEGER PRIMARY KEY AUTOINCREMENT, nama TEXT, sal
 CREATE TABLE emoney_produk (id INTEGER PRIMARY KEY AUTOINCREMENT, nama TEXT, jenis TEXT DEFAULT 'dompet', sumber_id INT, biaya_admin INT DEFAULT 0, biaya_modal INT DEFAULT 0, nominal_min INT DEFAULT 10000, nominal_maks INT DEFAULT 2000000, aktif INT DEFAULT 1, created_at TEXT);
 CREATE TABLE emoney_mutasi (id INTEGER PRIMARY KEY AUTOINCREMENT, sumber_id INT, tipe TEXT, jumlah INT, saldo_setelah INT, ref_id INT, catatan TEXT DEFAULT '', user_id INT, created_at TEXT);
 CREATE TABLE emoney_trx (id INTEGER PRIMARY KEY AUTOINCREMENT, penjualan_id INT UNIQUE, produk_id INT, sumber_id INT, no_tujuan TEXT, nama_pelanggan TEXT DEFAULT '', nominal INT, biaya_admin INT DEFAULT 0, modal INT, ref_penyedia TEXT DEFAULT '', user_id INT, created_at TEXT);
+CREATE TABLE petty_akun (id INTEGER PRIMARY KEY, nama TEXT, saldo INT DEFAULT 0);
+INSERT INTO petty_akun (id, nama, saldo) VALUES (1, 'Petty Cash', 0);
+CREATE TABLE petty_kas (id INTEGER PRIMARY KEY AUTOINCREMENT, tanggal TEXT, tipe TEXT, jumlah INT, saldo_setelah INT, kategori TEXT DEFAULT '', keterangan TEXT DEFAULT '', pemasok TEXT DEFAULT '', batal INT DEFAULT 0, ref_id INT, user_id INT, created_at TEXT);
