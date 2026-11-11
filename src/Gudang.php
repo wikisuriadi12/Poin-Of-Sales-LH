@@ -440,6 +440,20 @@ final class Gudang
         });
     }
 
+    /** Adjustment manual: tambah (+) atau kurangi (-) stok sebanyak qty, alasan wajib. Tercatat sebagai mutasi 'opname' berlabel Adjustment. */
+    public static function adjust(int $barangId, string $unit, int $delta, string $alasan, ?int $userId, ?string $scope): int
+    {
+        self::cekUnit($unit, $scope);
+        if ($delta === 0 || abs($delta) > 1000000) { throw new InvalidArgumentException('Jumlah adjustment harus 1 atau lebih.'); }
+        if (trim($alasan) === '') { throw new InvalidArgumentException('Alasan adjustment wajib diisi.'); }
+        if (!self::find($barangId)) { throw new InvalidArgumentException('Barang tidak ditemukan.'); }
+        return Db::transaction(function () use ($barangId, $unit, $delta, $alasan, $userId) {
+            $baru = self::ubah($barangId, $unit, $delta, 'opname', ['catatan' => 'Adjustment ' . ($delta > 0 ? '+' : '') . $delta . ': ' . trim($alasan), 'user_id' => $userId]);
+            Db::audit($userId, 'adjust', 'stok', $barangId, "$unit " . ($delta > 0 ? '+' : '') . "$delta " . trim($alasan));
+            return $baru;
+        });
+    }
+
     public static function riwayat(int $barangId, ?string $scope, int $limit = 40): array
     {
         $sql = 'SELECT m.*, u.nama AS petugas FROM stok_mutasi m LEFT JOIN users u ON u.id = m.user_id WHERE m.barang_id = ?';

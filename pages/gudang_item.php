@@ -17,6 +17,10 @@ if (is_post() && $edit) {
             case 'keluar':
                 Gudang::keluar($id, $unit, $num('qty'), in_str('catatan'), Auth::id(), $scope);
                 flash('Pengurangan stok dicatat.', 'warn'); break;
+            case 'adjust':
+                $q = $num('qty') * (in_str('arah') === 'kurang' ? -1 : 1);
+                Gudang::adjust($id, $unit, $q, in_str('catatan'), Auth::id(), $scope);
+                flash('Adjustment stok ' . ($q > 0 ? '+' : '') . $q . ' dicatat.', $q > 0 ? 'ok' : 'warn'); break;
             case 'opname':
                 Gudang::opname($id, $unit, $num('fisik'), in_str('catatan'), Auth::id(), $scope);
                 flash('Stok disesuaikan dengan hasil hitung fisik.'); break;
@@ -74,6 +78,11 @@ ob_start(); ?>
     <label>Jumlah <input name="qty" inputmode="numeric" required></label>
     <label>Alasan <input name="catatan" required placeholder="Rusak, kadaluarsa, hilang"></label>
     <button class="btn danger" data-confirm="Kurangi stok?"><?= icon('x') ?> Kurangi stok</button></form>
+  <form method="post" class="card form"><h2>Adjustment manual</h2><?= csrf_field() ?><input type="hidden" name="aksi" value="adjust"><input type="hidden" name="lok" value="<?= e($unit) ?>">
+    <label>Tambah / kurangi <select name="arah"><option value="tambah">Tambah stok (+)</option><option value="kurang">Kurangi stok (-)</option></select></label>
+    <label>Jumlah <input name="qty" inputmode="numeric" required></label>
+    <label>Alasan <input name="catatan" required placeholder="mis. selisih hitung, retur, barang titipan"></label>
+    <button class="btn ghost" data-confirm="Simpan adjustment stok?"><?= icon('check') ?> Simpan adjustment</button></form>
 </div>
 <form method="post" class="inline" style="margin:0 0 16px"><?= csrf_field() ?><input type="hidden" name="aksi" value="aktif"><input type="hidden" name="lok" value="<?= e($unit) ?>"><input type="hidden" name="aktif" value="<?= (int) $b['aktif'] ? 0 : 1 ?>">
   <button class="btn sm ghost"><?= (int) $b['aktif'] ? 'Nonaktifkan barang (tidak muncul di kasir)' : 'Aktifkan kembali' ?></button></form>

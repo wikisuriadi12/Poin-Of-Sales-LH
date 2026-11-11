@@ -502,5 +502,12 @@ $nb = Gudang::barangBaruCepat('Barang Petty Baru', 'pcs', 12000, 7000, 'ATK', nu
 Gudang::masukBanyak(Pos::GUDANG, 'Toko C', '', [[$nb, 3, 7000]], null, 'petty');
 ok('petty: barang baru manual masuk stok dan potong saldo', Gudang::stok($nb, Pos::GUDANG) === 3 && Petty::saldo() === $s2 - 21000);
 
+$a0 = Gudang::stok($pb, Pos::GUDANG);
+Gudang::adjust($pb, Pos::GUDANG, 5, 'selisih hitung', null, null);
+Gudang::adjust($pb, Pos::GUDANG, -2, 'retur', null, null);
+ok('adjustment tambah dan kurang stok', Gudang::stok($pb, Pos::GUDANG) === $a0 + 3);
+throws('adjustment tanpa alasan ditolak', fn() => Gudang::adjust($pb, Pos::GUDANG, 1, '', null, null));
+throws('adjustment nol ditolak', fn() => Gudang::adjust($pb, Pos::GUDANG, 0, 'x', null, null));
+
 echo $fail === 0 ? "\nSemua uji lulus.\n" : "\n$fail uji GAGAL.\n";
 exit($fail === 0 ? 0 : 1);
