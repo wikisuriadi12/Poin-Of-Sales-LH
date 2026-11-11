@@ -4,6 +4,25 @@ final class Petty
 {
     public const KATEGORI = ['Belanja stok' => 'Belanja stok (barang dagang)', 'ATK' => 'ATK / alat tulis', 'Kebersihan' => 'Kebersihan', 'Operasional' => 'Operasional toko', 'Transport' => 'Transport / ongkir', 'Lainnya' => 'Lainnya'];
 
+    public static function kategoriAman(string $k): string
+    {
+        return isset(self::KATEGORI[$k]) && $k !== 'Belanja stok' ? $k : 'Lainnya';
+    }
+
+    /** Beberapa belanja non-stok sekaligus dalam satu transaksi: baris = [keterangan, jumlah rupiah, kategori]. */
+    public static function belanjaBanyak(array $baris, string $pemasok, ?int $userId): int
+    {
+        $baris = array_values($baris);
+        if (!$baris) { throw new InvalidArgumentException('Isi minimal satu barang yang dibeli.'); }
+        foreach ($baris as $i => $b) {
+            if (trim((string) $b[0]) === '' || (int) $b[1] < 1 || (int) $b[1] > 1000000000) { throw new InvalidArgumentException('Baris ' . ($i + 1) . ': isi keterangan dan jumlah uang.'); }
+        }
+        return Db::transaction(function () use ($baris, $pemasok, $userId) {
+            foreach ($baris as $b) { self::ubah(-(int) $b[1], 'belanja', self::kategoriAman((string) ($b[2] ?? '')), (string) $b[0], $pemasok, $userId); }
+            return count($baris);
+        });
+    }
+
     public static function saldo(): int
     {
         $r = Db::one('SELECT saldo FROM petty_akun WHERE id = 1');

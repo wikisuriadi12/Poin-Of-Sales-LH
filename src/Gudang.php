@@ -204,7 +204,7 @@ final class Gudang
     }
 
     /** Catat barang masuk dari beberapa item sekaligus (satu pemasok), all-or-nothing. @param array<int,array{0:int,1:int,2:int}> $baris [barang_id, qty, harga_beli] */
-    public static function masukBanyak(string $unit, string $pemasok, string $catatan, array $baris, ?int $userId, string $jenis = 'tunai', ?string $jatuhTempo = null, string $faktur = ''): int
+    public static function masukBanyak(string $unit, string $pemasok, string $catatan, array $baris, ?int $userId, string $jenis = 'tunai', ?string $jatuhTempo = null, string $faktur = '', array $lainnya = []): int
     {
         if (!in_array($jenis, ['tunai', 'hutang', 'konsinyasi', 'petty'], true)) { throw new InvalidArgumentException('Jenis pembelian tidak valid.'); }
         self::cekUnit($unit, null);
@@ -229,7 +229,12 @@ final class Gudang
                 if ($ks === '' && (self::stok((int) $br['id'], Pos::GUDANG) + self::stok((int) $br['id'], Pos::TOKO)) > 0) { throw new InvalidArgumentException('Baris ' . ($i + 1) . ': ' . $br['nama'] . ' masih punya stok milik sendiri, tidak bisa dijadikan konsinyasi. Pakai barang/kode terpisah.'); }
             }
         }
-        Db::transaction(function () use ($unit, $pemasok, $catatan, $baris, $userId, $jenis, $jatuhTempo, $faktur) {
+        // Belanja Petty Cash yang juga memuat barang non-stok: [keterangan, jumlah rupiah, kategori]; semua dalam satu transaksi.
+        $lainnya = $jenis === 'petty' ? array_values($lainnya) : [];
+        foreach ($lainnya as $i => $l) {
+            if (trim((string) $l[0]) === '' || (int) $l[1] < 1) { throw new InvalidArgumentException('Baris non-stok ' . ($i + 1) . ': isi keterangan dan jumlah uang.'); }
+        }
+        Db::transaction(function () use ($unit, $pemasok, $catatan, $baris, $userId, $jenis, $jatuhTempo, $faktur, $lainnya) {
             $hid = null;
             if ($jenis === 'hutang') {
                 $tot = 0; foreach ($baris as $b) { $tot += (int) $b[1] * (int) $b[2]; }
@@ -245,6 +250,9 @@ final class Gudang
             if ($jenis === 'petty') {
                 $tot = 0; foreach ($baris as $b) { $tot += (int) $b[1] * (int) $b[2]; }
                 Petty::ubah(-$tot, 'belanja_stok', 'Belanja stok', trim(count($baris) . ' item ke ' . Pos::LOKASI[$unit] . ($faktur !== '' ? ', faktur ' . $faktur : '') . '. ' . $catatan), $pemasok, $userId);
+            }
+            foreach ($lainnya as $l) {
+                Petty::ubah(-(int) $l[1], 'belanja', Petty::kategoriAman((string) ($l[2] ?? '')), (string) $l[0], $pemasok, $userId);
             }
             Db::audit($userId, 'masuk', 'stok', null, "$unit " . count($baris) . ' item dari ' . $pemasok . ' (' . $jenis . ')');
         });

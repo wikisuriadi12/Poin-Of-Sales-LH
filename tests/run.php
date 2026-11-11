@@ -484,5 +484,17 @@ throws('petty: koreksi tanpa alasan ditolak', fn() => Petty::koreksi(100, '', nu
 $rg = Petty::ringkasan(date('Y-m-d'), date('Y-m-d'));
 ok('petty: ringkasan', $rg['isi'] === 1000000 && $rg['belanja_stok'] === -50000);
 
+// Belanja campuran: barang stok + non-stok dalam satu transaksi
+$s0 = Petty::saldo(); $st0 = Gudang::stok($pb, Pos::GUDANG);
+Gudang::masukBanyak(Pos::GUDANG, 'Toko A', 'campur', [[$pb, 2, 10000]], null, 'petty', null, '', [['Lakban', 15000, 'ATK']]);
+ok('petty: campuran potong saldo total', Petty::saldo() === $s0 - 35000);
+ok('petty: campuran stok bertambah', Gudang::stok($pb, Pos::GUDANG) === $st0 + 2);
+$s1 = Petty::saldo();
+throws('petty: campuran melebihi saldo batal seluruhnya', fn() => Gudang::masukBanyak(Pos::GUDANG, 'Toko A', '', [[$pb, 1, 1000]], null, 'petty', null, '', [['Besar', 99000000, 'ATK']]));
+ok('petty: campuran gagal tidak mengubah saldo/stok', Petty::saldo() === $s1 && Gudang::stok($pb, Pos::GUDANG) === $st0 + 2);
+Petty::belanjaBanyak([['Pulpen', 6000, 'ATK'], ['Sapu', 9000, 'Kebersihan']], 'Toko B', null);
+ok('petty: belanjaBanyak non-stok', Petty::saldo() === $s1 - 15000);
+throws('petty: belanjaBanyak baris kosong ditolak', fn() => Petty::belanjaBanyak([['', 0, 'ATK']], '', null));
+
 echo $fail === 0 ? "\nSemua uji lulus.\n" : "\n$fail uji GAGAL.\n";
 exit($fail === 0 ? 0 : 1);
