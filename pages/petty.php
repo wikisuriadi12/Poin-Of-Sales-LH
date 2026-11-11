@@ -11,7 +11,7 @@ if (is_post()) {
             flash('Saldo Petty Cash bertambah ' . rp($num('jumlah')) . '.');
         } elseif ($aksi === 'belanja' && $bolehBelanja) {
             $ids = (array) ($_POST['barang_id'] ?? []); $kets = (array) ($_POST['ket'] ?? []); $qs = (array) ($_POST['qty'] ?? []); $hs = (array) ($_POST['harga'] ?? []);
-            $stok = []; $lain = []; $kat = in_str('kategori'); $baru = []; $mode = in_str('mode') === 'stok' ? 'stok' : 'lain';
+            $stok = []; $lain = []; $kat = in_str('kategori'); $baru = []; $mode = 'stok';
             $ang = static fn($v) => (int) preg_replace('/\D/', '', (string) $v);
             try {
             foreach ($ids as $i => $bid) {
@@ -69,7 +69,7 @@ ob_start(); ?>
   <?php if ($bolehBelanja): ?><div class="card"><h2>Catat belanja</h2><p class="mut">Barang yang dipilih dari daftar barang langsung masuk stok. Baris tanpa barang (ATK, kebersihan, dll) hanya mengurangi saldo.</p><p class="mut" style="margin-top:-6px">Saldo sekarang <b><?= rp($saldo) ?></b>. Total belanja akan memotong saldo ini.</p></div><?php endif; ?>
 </div>
 <?php if ($bolehBelanja): ?>
-<form method="post" class="card form" id="pb-stok" style="margin-top:16px"><?= csrf_field() ?><input type="hidden" name="aksi" value="belanja"><input type="hidden" name="mode" value="stok"><h2>Belanja barang stok</h2>
+<form method="post" class="card form" id="pb-stok" style="margin-top:16px"><?= csrf_field() ?><input type="hidden" name="aksi" value="belanja"><input type="hidden" name="mode" value="stok"><h2>Belanja barang (masuk stok)</h2>
   <p class="mut">Barang masuk ke stok dan uangnya memotong saldo. Barang yang belum ada di master bisa ditambah lewat pilihan "+ Barang baru"; tetap masuk stok.</p>
   <div class="grid g3">
     <label>Toko / supplier <input name="pemasok" list="dl-pemasok" maxlength="100" required></label>
@@ -81,17 +81,6 @@ ob_start(); ?>
     <tfoot><tr><th colspan="3" class="r">Total (memotong saldo)</th><th class="r tot">Rp 0</th></tr></tfoot></table></div>
   <div class="acts" style="margin:8px 0"><button type="button" class="btn ghost sm tambah"><?= icon('plus') ?> Tambah baris</button></div>
   <div class="acts"><button class="btn"><?= icon('check') ?> Simpan, tambah stok, kurangi saldo</button></div>
-</form>
-<form method="post" class="card form" id="pb-lain" style="margin-top:16px"><?= csrf_field() ?><input type="hidden" name="aksi" value="belanja"><input type="hidden" name="mode" value="lain"><h2>Belanja non-stok</h2>
-  <p class="mut">Pengeluaran yang tidak masuk stok (ATK, kebersihan, dll). Hanya mengurangi saldo.</p>
-  <div class="grid g3">
-    <label>Toko / keterangan tempat <input name="pemasok" maxlength="100" placeholder="Opsional"></label>
-    <label>Kategori <select name="kategori"><?php foreach (Petty::KATEGORI as $k => $v): if ($k === 'Belanja stok') { continue; } ?><option value="<?= e($k) ?>"><?= e($v) ?></option><?php endforeach; ?></select></label>
-  </div>
-  <div class="scroll"><table class="rt"><thead><tr><th>Keterangan</th><th class="r">Jumlah</th><th class="r">Harga satuan</th><th class="r">Subtotal</th></tr></thead><tbody></tbody>
-    <tfoot><tr><th colspan="3" class="r">Total (memotong saldo)</th><th class="r tot">Rp 0</th></tr></tfoot></table></div>
-  <div class="acts" style="margin:8px 0"><button type="button" class="btn ghost sm tambah"><?= icon('plus') ?> Tambah baris</button></div>
-  <div class="acts"><button class="btn"><?= icon('check') ?> Simpan dan kurangi saldo</button></div>
 </form>
 <?php
 $opsiBarang = '<option value="0">- pilih barang -</option>';
@@ -133,7 +122,6 @@ foreach (Db::all('SELECT id, kode, nama, harga_beli FROM barang WHERE aktif = 1 
     form.querySelector('.tambah').addEventListener('click', baris);
   }
   pasang(document.getElementById('pb-stok'), true);
-  pasang(document.getElementById('pb-lain'), false);
 })();
 </script>
 <?php endif; ?>
