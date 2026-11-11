@@ -193,6 +193,27 @@ final class Gudang
         return $id;
     }
 
+    /** Buat barang baru dari baris form barang masuk / belanja. Kode otomatis. Harga jual wajib. */
+    public static function barangBaruCepat(string $nama, string $satuan, int $hargaJual, int $hargaBeli, string $kategori, ?int $userId): int
+    {
+        $nama = trim($nama);
+        if ($nama === '') { throw new InvalidArgumentException('Nama barang baru wajib diisi.'); }
+        if ($hargaJual < 1) { throw new InvalidArgumentException('Harga jual barang baru "' . $nama . '" wajib diisi.'); }
+        return self::simpanBarang(['kode' => '', 'nama' => $nama, 'kategori' => trim($kategori), 'satuan' => trim($satuan) !== '' ? trim($satuan) : 'pcs',
+            'harga_beli' => max(0, $hargaBeli), 'harga_jual' => $hargaJual, 'harga_pegawai' => null, 'stok_min' => 5], null, $userId);
+    }
+
+    /** Urungkan barang baru yang batal dipakai (belum punya mutasi stok). */
+    public static function urungkanBarangBaru(array $ids): void
+    {
+        foreach ($ids as $id) {
+            if (!Db::val('SELECT 1 FROM stok_mutasi WHERE barang_id = ?', [(int) $id])) {
+                Db::exec('DELETE FROM stok WHERE barang_id = ?', [(int) $id]);
+                Db::exec('DELETE FROM barang WHERE id = ?', [(int) $id]);
+            }
+        }
+    }
+
     /** Daftarkan barang ke daftar stok Market (stok 0) agar tampil di Stok Market/kasir dan bisa menerima transfer. */
     public static function daftarkanMarket(int $barangId, ?int $userId): bool
     {

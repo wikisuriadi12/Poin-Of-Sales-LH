@@ -11,11 +11,18 @@ if (is_post()) {
     csrf_check();
     $lok = isset($lokasi[in_str('lok')]) ? in_str('lok') : array_key_first($lokasi);
     $ids = (array) ($_POST['barang_id'] ?? []); $qs = (array) ($_POST['qty'] ?? []); $hs = (array) ($_POST['harga_beli'] ?? []);
-    $baris = [];
-    foreach ($ids as $i => $bid) {
-        $baris[] = [(int) $bid, (int) preg_replace('/\D/', '', (string) ($qs[$i] ?? '0')), $modal ? (int) preg_replace('/\D/', '', (string) ($hs[$i] ?? '0')) : 0];
-    }
+    $baris = []; $baru = [];
+    $angka = static fn($v) => (int) preg_replace('/\D/', '', (string) $v);
     try {
+    foreach ($ids as $i => $bid) {
+        $hb = $modal ? $angka($hs[$i] ?? '0') : 0;
+        if ($bid === 'baru') {
+            if (!Auth::can('barang.tambah')) { throw new InvalidArgumentException('Akses tambah barang ditolak.'); }
+            $bid = Gudang::barangBaruCepat((string) ($_POST['nama_baru'][$i] ?? ''), (string) ($_POST['satuan_baru'][$i] ?? ''), $angka($_POST['jual_baru'][$i] ?? '0'), $hb, (string) ($_POST['kat_baru'][$i] ?? ''), Auth::id());
+            $baru[] = $bid;
+        }
+        $baris[] = [(int) $bid, $angka($qs[$i] ?? '0'), $hb];
+    }
         $faktur = in_str('faktur');
         $bolehPetty = $penuh && Auth::can('petty.belanja');
         $jenis = $penuh && in_array(in_str('jenis'), ['tunai', 'hutang', 'konsinyasi', 'petty'], true) ? in_str('jenis') : 'tunai';
@@ -23,14 +30,14 @@ if (is_post()) {
         $n = Gudang::masukBanyak($lok, in_str('pemasok'), trim(($faktur !== '' ? 'Faktur ' . $faktur . '. ' : '') . in_str('catatan')), $baris, Auth::id(), $jenis, in_str('jatuh_tempo') ?: null, $faktur);
         flash($n . ' item masuk ke stok ' . Pos::LOKASI[$lok] . ' dari ' . trim(in_str('pemasok')) . ['tunai' => '.', 'hutang' => ' (dicatat sebagai hutang).', 'konsinyasi' => ' (konsinyasi: dibayar setelah terjual).', 'petty' => ' (dibayar dari Petty Cash, sisa saldo ' . rp(Petty::saldo()) . ').'][$jenis]);
         redirect('?p=barang_masuk&lok=' . $lok);
-    } catch (InvalidArgumentException $ex) { flash($ex->getMessage(), 'err'); $unit = $lok; }
+    } catch (InvalidArgumentException $ex) { Gudang::urungkanBarangBaru($baru); flash($ex->getMessage(), 'err'); $unit = $lok; }
 }
-$opsi = '<option value="">- pilih barang -</option>';
+$opsi = '<option value="">- pilih barang -</option>' . (Auth::can('barang.tambah') ? '<option value="baru">+ Barang baru (tambah manual)</option>' : '');
 foreach ($barang as $b) { $opsi .= '<option value="' . (int) $b['id'] . '"' . ($modal ? ' data-hb="' . (int) $b['harga_beli'] . '"' : '') . '>' . e($b['nama'] . ' (' . $b['kode'] . ')') . '</option>'; }
 $terakhir = Gudang::laporanMasuk(date('Y-m-d', strtotime('-30 days')), date('Y-m-d'), '', '');
 ob_start(); ?>
 <div class="page-h"><div><h1>Barang Masuk</h1><p>Catat barang datang dari supplier. Stok langsung bertambah di lokasi yang dipilih.</p></div>
-  <div class="acts"><a class="btn ghost" href="?p=laporan_pos&amp;tab=masuk">Laporan barang masuk</a><a class="btn ghost" href="?p=barang">Barang baru</a></div></div>
+  <div class="acts"><a class="btn ghost" href="?p=laporan_pos&amp;tab=masuk">Laporan barang masuk</a><a class="btn ghost" href="?p=barang">Daftar barang</a></div></div>
 <form method="post" class="card form" id="bm"><?= csrf_field() ?>
   <div class="grid g3">
     <label>Masuk ke <select name="lok"><?= options($lokasi, $unit) ?></select></label>
@@ -40,6 +47,7 @@ ob_start(); ?>
     <label id="bm-tempo" style="display:none">Jatuh tempo hutang <input type="date" name="jatuh_tempo" value="<?= e(in_str('jatuh_tempo')) ?>"></label>
   </div>
   <p class="mut" id="bm-info" style="margin:0 0 8px;display:none"></p>
+  <datalist id="kat"><?php foreach (Gudang::kategori() as $k): ?><option value="<?= e($k) ?>"><?php endforeach; ?></datalist>
   <datalist id="dl-pemasok"><?php foreach ($pemasokList as $p): ?><option value="<?= e($p) ?>"><?php endforeach; ?></datalist>
   <div class="scroll"><table class="rt" id="bm-t">
     <thead><tr><th>Barang</th><th class="r">Jumlah</th><?php if ($modal): ?><th class="r">Harga beli satuan</th><?php endif; ?></tr></thead>
@@ -60,9 +68,11 @@ ob_start(); ?>
   var saldoPetty = <?= json_encode(Auth::can('petty.view') ? rp(Petty::saldo()) : '-') ?>, opsi = <?= json_encode($opsi) ?>, modal = <?= $modal ? 'true' : 'false' ?>, tb = document.querySelector('#bm-t tbody');
   function baris() {
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td><select name="barang_id[]">' + opsi + '</select></td><td class="r"><input name="qty[]" inputmode="numeric" style="width:90px;text-align:right"></td>' +
+    tr.innerHTML = '<td><select name="barang_id[]">' + opsi + '</select>' +
+      '<div class="baru" style="display:none;margin-top:6px;gap:6px;flex-wrap:wrap"><input name="nama_baru[]" maxlength="150" placeholder="Nama barang baru"><input name="kat_baru[]" maxlength="60" list="kat" placeholder="Kategori" style="width:120px"><input name="satuan_baru[]" value="pcs" style="width:70px" placeholder="Satuan"><input name="jual_baru[]" inputmode="numeric" style="width:120px" placeholder="Harga jual"></div></td><td class="r"><input name="qty[]" inputmode="numeric" style="width:90px;text-align:right"></td>' +
       (modal ? '<td class="r"><input name="harga_beli[]" inputmode="numeric" style="width:120px;text-align:right" placeholder="otomatis"></td>' : '');
     tr.querySelector('select').addEventListener('change', function () {
+      tr.querySelector('.baru').style.display = this.value === 'baru' ? 'flex' : 'none';
       var o = this.options[this.selectedIndex], h = tr.querySelector('[name="harga_beli[]"]');
       if (h && o && o.dataset.hb && !h.value) { h.value = o.dataset.hb; }
     });

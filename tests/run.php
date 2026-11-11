@@ -496,5 +496,11 @@ Petty::belanjaBanyak([['Pulpen', 6000, 'ATK'], ['Sapu', 9000, 'Kebersihan']], 'T
 ok('petty: belanjaBanyak non-stok', Petty::saldo() === $s1 - 15000);
 throws('petty: belanjaBanyak baris kosong ditolak', fn() => Petty::belanjaBanyak([['', 0, 'ATK']], '', null));
 
+// Barang baru manual lewat jalur stok petty
+$s2 = Petty::saldo();
+$nb = Gudang::barangBaruCepat('Barang Petty Baru', 'pcs', 12000, 7000, 'ATK', null);
+Gudang::masukBanyak(Pos::GUDANG, 'Toko C', '', [[$nb, 3, 7000]], null, 'petty');
+ok('petty: barang baru manual masuk stok dan potong saldo', Gudang::stok($nb, Pos::GUDANG) === 3 && Petty::saldo() === $s2 - 21000);
+
 echo $fail === 0 ? "\nSemua uji lulus.\n" : "\n$fail uji GAGAL.\n";
 exit($fail === 0 ? 0 : 1);

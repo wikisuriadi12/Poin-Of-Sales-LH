@@ -11,8 +11,15 @@ if (is_post()) {
             flash('Saldo Petty Cash bertambah ' . rp($num('jumlah')) . '.');
         } elseif ($aksi === 'belanja' && $bolehBelanja) {
             $ids = (array) ($_POST['barang_id'] ?? []); $kets = (array) ($_POST['ket'] ?? []); $qs = (array) ($_POST['qty'] ?? []); $hs = (array) ($_POST['harga'] ?? []);
-            $stok = []; $lain = []; $kat = in_str('kategori');
+            $stok = []; $lain = []; $kat = in_str('kategori'); $baru = [];
+            $ang = static fn($v) => (int) preg_replace('/\D/', '', (string) $v);
+            try {
             foreach ($ids as $i => $bid) {
+                if ($bid === 'baru') {
+                    if (!Auth::can('barang.tambah')) { throw new InvalidArgumentException('Akses tambah barang ditolak.'); }
+                    $bid = Gudang::barangBaruCepat((string) ($_POST['nama_baru'][$i] ?? ''), (string) ($_POST['satuan_baru'][$i] ?? ''), $ang($_POST['jual_baru'][$i] ?? '0'), $ang($hs[$i] ?? '0'), (string) ($_POST['kat_baru'][$i] ?? ''), Auth::id());
+                    $baru[] = $bid;
+                }
                 $q = (int) preg_replace('/\D/', '', (string) ($qs[$i] ?? '0')); $h = (int) preg_replace('/\D/', '', (string) ($hs[$i] ?? '0')); $kt = trim((string) ($kets[$i] ?? ''));
                 if ((int) $bid > 0) { $stok[] = [(int) $bid, $q, $h]; }
                 elseif ($kt !== '' || $q > 0 || $h > 0) { $lain[] = [$kt, max($q, 1) * $h, $kat]; }
@@ -25,6 +32,7 @@ if (is_post()) {
                 $n = Petty::belanjaBanyak($lain, in_str('pemasok'), Auth::id());
                 flash($n . ' belanja dicatat (bukan stok). Sisa saldo ' . rp(Petty::saldo()) . '.');
             }
+            } catch (InvalidArgumentException $ex) { Gudang::urungkanBarangBaru($baru); throw $ex; }
         } elseif ($aksi === 'koreksi' && $bolehIsi) {
             Petty::koreksi($num('jumlah') * (in_str('arah') === 'kurang' ? -1 : 1), in_str('alasan'), Auth::id());
             flash('Saldo dikoreksi dan tercatat di jejak audit.', 'warn');
@@ -76,6 +84,7 @@ ob_start(); ?>
 </form>
 <?php
 $opsiBarang = '<option value="0">- bukan stok / ketik keterangan -</option>';
+if (Auth::can('barang.tambah')) { $opsiBarang .= '<option value="baru">+ Barang baru (tambah manual, masuk stok)</option>'; }
 foreach (Db::all('SELECT id, kode, nama, harga_beli FROM barang WHERE aktif = 1 ORDER BY nama') as $b) { $opsiBarang .= '<option value="' . (int) $b['id'] . '" data-hb="' . (int) $b['harga_beli'] . '">' . e($b['nama'] . ' (' . $b['kode'] . ')') . '</option>'; }
 ?>
 <script>
@@ -93,12 +102,12 @@ foreach (Db::all('SELECT id, kode, nama, harga_beli FROM barang WHERE aktif = 1 
   }
   function baris() {
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td><select name="barang_id[]">' + opsi + '</select></td><td><input name="ket[]" maxlength="150" placeholder="mis. Kertas struk 5 roll"></td>' +
+    tr.innerHTML = '<td><select name="barang_id[]">' + opsi + '</select><div class="baru" style="display:none;margin-top:6px;gap:6px;flex-wrap:wrap"><input name="nama_baru[]" maxlength="150" placeholder="Nama barang baru"><input name="kat_baru[]" maxlength="60" placeholder="Kategori" style="width:110px"><input name="satuan_baru[]" value="pcs" style="width:70px"><input name="jual_baru[]" inputmode="numeric" style="width:110px" placeholder="Harga jual"></div></td><td><input name="ket[]" maxlength="150" placeholder="mis. Kertas struk 5 roll"></td>' +
       '<td class="r"><input name="qty[]" inputmode="numeric" style="width:80px;text-align:right"></td><td class="r"><input name="harga[]" inputmode="numeric" style="width:120px;text-align:right"></td><td class="r sub">Rp 0</td>';
     var sel = tr.querySelector('select'), ket = tr.querySelector('[name="ket[]"]');
     sel.addEventListener('change', function () {
       var o = sel.options[sel.selectedIndex], h = tr.querySelector('[name="harga[]"]');
-      ket.disabled = sel.value !== '0'; if (sel.value !== '0') { ket.value = ''; if (o.dataset.hb && !h.value) { h.value = o.dataset.hb; } }
+      tr.querySelector('.baru').style.display = sel.value === 'baru' ? 'flex' : 'none'; ket.disabled = sel.value !== '0'; if (sel.value !== '0') { ket.value = ''; if (o.dataset.hb && !h.value) { h.value = o.dataset.hb; } }
       hitung();
     });
     tr.addEventListener('input', hitung);
