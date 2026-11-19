@@ -42,5 +42,6 @@ $logo = '<span class="logo">' . icon('book', 20) . '</span>';
 <main class="pub"><?= $content ?></main>
 <?php endif; ?>
 <script src="<?= e($asset('app.js')) ?>" defer></script>
+<script src="<?= e($asset('paging.js')) ?>" defer></script>
 </body>
 </html>
