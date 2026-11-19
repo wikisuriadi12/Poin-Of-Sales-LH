@@ -247,7 +247,7 @@ final class Pos
         if ($unit) { $w .= ' AND p.unit = ?'; $p[] = $unit; }
         if ($userId) { $w .= ' AND p.user_id = ?'; $p[] = $userId; }
         $r = Db::one("SELECT COUNT(*) AS n, COALESCE(SUM(p.total),0) AS omzet FROM penjualan p WHERE $w", $p);
-        $laba = (int) Db::val("SELECT COALESCE(SUM(i.subtotal - i.qty * i.harga_beli),0) FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id WHERE $w", $p);
+        $laba = (int) Db::val("SELECT COALESCE(SUM(CAST(i.subtotal AS SIGNED) - CAST(i.qty AS SIGNED) * CAST(i.harga_beli AS SIGNED)),0) FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id WHERE $w", $p);
         try { $laba -= (int) Db::val("SELECT COALESCE(SUM(p.diskon),0) FROM penjualan p WHERE $w", $p); } catch (Throwable $e) { /* kolom diskon belum dimigrasi */ }
         return ['n' => (int) $r['n'], 'omzet' => (int) $r['omzet'], 'laba' => $laba];
     }

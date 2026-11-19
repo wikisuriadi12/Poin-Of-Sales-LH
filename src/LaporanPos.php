@@ -28,7 +28,7 @@ final class LaporanPos
         $p = [$dari, $sampai];
         $r = Db::one('SELECT COUNT(*) AS n, COALESCE(SUM(p.total),0) AS omzet FROM penjualan p WHERE ' . self::sah() . " AND p.jenis = 'barang'", $p);
         // Top up e-money: dihitung terpisah dari omzet barang
-        $tu = Db::one('SELECT COUNT(*) AS n, COALESCE(SUM(p.total),0) AS total, COALESCE(SUM(t.biaya_admin),0) AS admin, COALESCE(SUM(p.total - t.modal),0) AS laba FROM penjualan p JOIN emoney_trx t ON t.penjualan_id = p.id WHERE ' . self::sah(), $p);
+        $tu = Db::one('SELECT COUNT(*) AS n, COALESCE(SUM(p.total),0) AS total, COALESCE(SUM(t.biaya_admin),0) AS admin, COALESCE(SUM(CAST(p.total AS SIGNED) - CAST(t.modal AS SIGNED)),0) AS laba FROM penjualan p JOIN emoney_trx t ON t.penjualan_id = p.id WHERE ' . self::sah(), $p);
         $qty = (int) Db::val('SELECT COALESCE(SUM(i.qty),0) FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id WHERE ' . self::sah(), $p);
         $batal = Db::one('SELECT COUNT(*) AS n, COALESCE(SUM(p.total),0) AS nilai FROM penjualan p WHERE p.dibatalkan = 1 AND p.tanggal >= ? AND p.tanggal <= ?' . self::filterKasir(), $p);
         $diskon = 0;
@@ -111,7 +111,7 @@ final class LaporanPos
     public static function produk(string $dari, string $sampai, string $urut = 'qty'): array
     {
         $o = ['qty' => 'qty', 'omzet' => 'omzet', 'laba' => 'laba'][$urut] ?? 'qty';
-        return Db::all('SELECT i.barang_id, i.nama, SUM(i.qty) AS qty, SUM(i.subtotal) AS omzet, SUM(i.subtotal - i.qty * i.harga_beli) AS laba FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id WHERE ' . self::sah() . " GROUP BY i.barang_id, i.nama ORDER BY $o DESC, i.nama LIMIT 500", [$dari, $sampai]);
+        return Db::all('SELECT i.barang_id, i.nama, SUM(i.qty) AS qty, SUM(i.subtotal) AS omzet, SUM(CAST(i.subtotal AS SIGNED) - CAST(i.qty AS SIGNED) * CAST(i.harga_beli AS SIGNED)) AS laba FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id WHERE ' . self::sah() . " GROUP BY i.barang_id, i.nama ORDER BY $o DESC, i.nama LIMIT 500", [$dari, $sampai]);
     }
 
     /** Barang di Market yang tidak terjual sama sekali pada rentang. */
@@ -122,7 +122,7 @@ final class LaporanPos
 
     public static function kategori(string $dari, string $sampai): array
     {
-        return Db::all("SELECT COALESCE(NULLIF(b.kategori, ''), 'Lainnya') AS kategori, SUM(i.qty) AS qty, SUM(i.subtotal) AS omzet, SUM(i.subtotal - i.qty * i.harga_beli) AS laba FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id JOIN barang b ON b.id = i.barang_id WHERE " . self::sah() . ' GROUP BY 1 ORDER BY omzet DESC', [$dari, $sampai]);
+        return Db::all("SELECT COALESCE(NULLIF(b.kategori, ''), 'Lainnya') AS kategori, SUM(i.qty) AS qty, SUM(i.subtotal) AS omzet, SUM(CAST(i.subtotal AS SIGNED) - CAST(i.qty AS SIGNED) * CAST(i.harga_beli AS SIGNED)) AS laba FROM penjualan_item i JOIN penjualan p ON p.id = i.penjualan_id JOIN barang b ON b.id = i.barang_id WHERE " . self::sah() . ' GROUP BY 1 ORDER BY omzet DESC', [$dari, $sampai]);
     }
 
     public static function perKasir(string $dari, string $sampai): array
