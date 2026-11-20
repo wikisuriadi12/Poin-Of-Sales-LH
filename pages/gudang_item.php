@@ -9,6 +9,7 @@ $unit = isset(Pos::LOKASI[in_str('lok')]) ? in_str('lok') : Pos::GUDANG;
 $num = static fn(string $k): int => (int) preg_replace('/\D/', '', in_str($k, '0'));
 if (is_post() && $edit) {
     csrf_check();
+    if (!once_check()) { flash('Formulir ini sudah diproses atau kedaluwarsa, tidak diproses dua kali. Cek riwayat stok sebelum mengulang.', 'warn'); redirect('?p=gudang_item&id=' . $id); }
     try {
         switch (in_str('aksi')) {
             case 'masuk':
@@ -52,11 +53,11 @@ ob_start(); ?>
 <?php if ($edit): ?>
 <?php $adaMarket = (bool) Db::val('SELECT 1 FROM stok WHERE barang_id = ? AND unit = ?', [$id, Pos::TOKO]); ?>
 <?php if (!$adaMarket): ?>
-<form method="post" class="card form" style="margin-bottom:16px"><h2>Belum ada di Stok Market</h2><?= csrf_field() ?><input type="hidden" name="aksi" value="daftar_market">
+<form method="post" class="card form" style="margin-bottom:16px"><h2>Belum ada di Stok Market</h2><?= csrf_field() . once_field() ?><input type="hidden" name="aksi" value="daftar_market">
   <p class="mut" style="margin:0 0 10px">Barang ini belum tampil di Stok Market dan belum bisa menerima transfer dari Gudang. Daftarkan dulu (stok 0).</p>
   <button class="btn"><?= icon('plus') ?> Tambahkan ke Stok Market</button></form>
 <?php endif; ?>
-<form method="post" class="card form" style="margin-bottom:16px"><h2>Transfer stok</h2><?= csrf_field() ?><input type="hidden" name="aksi" value="transfer"><input type="hidden" name="lok" value="<?= e($unit) ?>">
+<form method="post" class="card form" style="margin-bottom:16px"><h2>Transfer stok</h2><?= csrf_field() . once_field() ?><input type="hidden" name="aksi" value="transfer"><input type="hidden" name="lok" value="<?= e($unit) ?>">
   <p class="mut" style="margin:0 0 10px">Stok Gudang <b><?= Gudang::stok($id, Pos::GUDANG) ?></b> &middot; Stok Market <b><?= Gudang::stok($id, Pos::TOKO) ?></b>. Transfer ke Market hanya untuk barang yang sudah terdaftar di Stok Market.</p>
   <label>Dari <select name="dari"><?= options(Pos::LOKASI, Pos::GUDANG) ?></select></label>
   <label>Ke <select name="ke"><?= options(Pos::LOKASI, Pos::TOKO) ?></select></label>
@@ -64,27 +65,27 @@ ob_start(); ?>
   <label>Catatan <input name="catatan" placeholder="Opsional"></label>
   <button class="btn"><?= icon('arrow-right') ?> Pindahkan</button></form>
 <div class="grid g3">
-  <form method="post" class="card form"><h2>Barang masuk</h2><?= csrf_field() ?><input type="hidden" name="aksi" value="masuk"><input type="hidden" name="lok" value="<?= e($unit) ?>">
+  <form method="post" class="card form"><h2>Barang masuk</h2><?= csrf_field() . once_field() ?><input type="hidden" name="aksi" value="masuk"><input type="hidden" name="lok" value="<?= e($unit) ?>">
     <label>Jumlah <input name="qty" inputmode="numeric" required></label>
     <label>Harga beli satuan <input name="harga_beli" data-rupiah inputmode="numeric" value="<?= (int) $b['harga_beli'] ?>"></label>
     <label>Pemasok <input name="pemasok" placeholder="Toko / agen"></label>
     <label>Catatan <input name="catatan"></label>
     <button class="btn"><?= icon('plus') ?> Catat masuk</button></form>
-  <form method="post" class="card form"><h2>Opname (hitung fisik)</h2><?= csrf_field() ?><input type="hidden" name="aksi" value="opname"><input type="hidden" name="lok" value="<?= e($unit) ?>">
+  <form method="post" class="card form"><h2>Opname (hitung fisik)</h2><?= csrf_field() . once_field() ?><input type="hidden" name="aksi" value="opname"><input type="hidden" name="lok" value="<?= e($unit) ?>">
     <label>Stok fisik sebenarnya <input name="fisik" inputmode="numeric" required value="<?= $stok ?>"></label>
     <label>Catatan <input name="catatan" placeholder="Opname akhir bulan"></label>
     <button class="btn ghost" data-confirm="Samakan stok sistem dengan hitungan fisik?"><?= icon('check') ?> Sesuaikan stok</button></form>
-  <form method="post" class="card form"><h2>Keluar (rusak/hilang)</h2><?= csrf_field() ?><input type="hidden" name="aksi" value="keluar"><input type="hidden" name="lok" value="<?= e($unit) ?>">
+  <form method="post" class="card form"><h2>Keluar (rusak/hilang)</h2><?= csrf_field() . once_field() ?><input type="hidden" name="aksi" value="keluar"><input type="hidden" name="lok" value="<?= e($unit) ?>">
     <label>Jumlah <input name="qty" inputmode="numeric" required></label>
     <label>Alasan <input name="catatan" required placeholder="Rusak, kadaluarsa, hilang"></label>
     <button class="btn danger" data-confirm="Kurangi stok?"><?= icon('x') ?> Kurangi stok</button></form>
-  <form method="post" class="card form"><h2>Adjustment manual</h2><?= csrf_field() ?><input type="hidden" name="aksi" value="adjust"><input type="hidden" name="lok" value="<?= e($unit) ?>">
+  <form method="post" class="card form"><h2>Adjustment manual</h2><?= csrf_field() . once_field() ?><input type="hidden" name="aksi" value="adjust"><input type="hidden" name="lok" value="<?= e($unit) ?>">
     <label>Tambah / kurangi <select name="arah"><option value="tambah">Tambah stok (+)</option><option value="kurang">Kurangi stok (-)</option></select></label>
     <label>Jumlah <input name="qty" inputmode="numeric" required></label>
     <label>Alasan <input name="catatan" required placeholder="mis. selisih hitung, retur, barang titipan"></label>
     <button class="btn ghost" data-confirm="Simpan adjustment stok?"><?= icon('check') ?> Simpan adjustment</button></form>
 </div>
-<form method="post" class="inline" style="margin:0 0 16px"><?= csrf_field() ?><input type="hidden" name="aksi" value="aktif"><input type="hidden" name="lok" value="<?= e($unit) ?>"><input type="hidden" name="aktif" value="<?= (int) $b['aktif'] ? 0 : 1 ?>">
+<form method="post" class="inline" style="margin:0 0 16px"><?= csrf_field() . once_field() ?><input type="hidden" name="aksi" value="aktif"><input type="hidden" name="lok" value="<?= e($unit) ?>"><input type="hidden" name="aktif" value="<?= (int) $b['aktif'] ? 0 : 1 ?>">
   <button class="btn sm ghost"><?= (int) $b['aktif'] ? 'Nonaktifkan barang (tidak muncul di kasir)' : 'Aktifkan kembali' ?></button></form>
 <?php endif; ?>
 <div class="card"><h2>Riwayat stok</h2>

@@ -4,6 +4,7 @@ $bolehBelanja = Auth::can('petty.belanja'); $bolehIsi = Auth::can('petty.isi');
 $num = static fn(string $k): int => (int) preg_replace('/\D/', '', in_str($k, '0'));
 if (is_post()) {
     csrf_check();
+    if (!once_check()) { flash('Formulir ini sudah diproses atau kedaluwarsa, tidak diproses dua kali. Cek riwayat Petty Cash sebelum mengulang.', 'warn'); redirect('?p=petty'); }
     try {
         $aksi = in_str('aksi');
         if ($aksi === 'isi' && $bolehIsi) {
@@ -62,14 +63,14 @@ ob_start(); ?>
   <div class="acts"><a class="btn ghost" href="?p=petty&amp;csv=1&amp;dari=<?= e($dari) ?>&amp;sampai=<?= e($sampai) ?>&amp;tipe=<?= e($tipe) ?>"><?= icon('download') ?> Unduh CSV</a></div></div>
 <div class="kpis"><?php foreach ($kpi as [$lb, $nilai, $ic, $c]): ?><div class="kpi"><div class="chip <?= e($c) ?>"><?= icon($ic, 22) ?></div><div><span><?= e($lb) ?></span><b><?= e($nilai) ?></b></div></div><?php endforeach; ?></div>
 <div class="grid g2">
-  <?php if ($bolehIsi): ?><form method="post" class="card form"><?= csrf_field() ?><input type="hidden" name="aksi" value="isi"><h2>Isi saldo</h2>
+  <?php if ($bolehIsi): ?><form method="post" class="card form"><?= csrf_field() . once_field() ?><input type="hidden" name="aksi" value="isi"><h2>Isi saldo</h2>
     <label>Jumlah (Rp) <input name="jumlah" inputmode="numeric" required placeholder="mis. 500000"></label>
     <label>Keterangan <input name="keterangan" maxlength="200" placeholder="mis. Pengambilan dari kas besar"></label>
     <div class="acts"><button class="btn"><?= icon('check') ?> Tambah saldo</button></div></form><?php endif; ?>
   <?php if ($bolehBelanja): ?><div class="card"><h2>Catat belanja</h2><p class="mut">Barang yang dipilih dari daftar barang langsung masuk stok. Baris tanpa barang (ATK, kebersihan, dll) hanya mengurangi saldo.</p><p class="mut" style="margin-top:-6px">Saldo sekarang <b><?= rp($saldo) ?></b>. Total belanja akan memotong saldo ini.</p></div><?php endif; ?>
 </div>
 <?php if ($bolehBelanja): ?>
-<form method="post" class="card form" id="pb-stok" style="margin-top:16px"><?= csrf_field() ?><input type="hidden" name="aksi" value="belanja"><input type="hidden" name="mode" value="stok"><h2>Belanja barang (masuk stok)</h2>
+<form method="post" class="card form" id="pb-stok" style="margin-top:16px"><?= csrf_field() . once_field() ?><input type="hidden" name="aksi" value="belanja"><input type="hidden" name="mode" value="stok"><h2>Belanja barang (masuk stok)</h2>
   <p class="mut">Barang masuk ke stok dan uangnya memotong saldo. Barang yang belum ada di master bisa ditambah lewat pilihan "+ Barang baru"; tetap masuk stok.</p>
   <div class="grid g3">
     <label>Toko / supplier <input name="pemasok" list="dl-pemasok" maxlength="100" required></label>
@@ -136,12 +137,12 @@ foreach (Db::all('SELECT id, kode, nama, harga_beli FROM barang WHERE aktif = 1 
     <td data-label="Tanggal"><?= e(date('d/m/Y', strtotime($r['tanggal']))) ?></td><td data-label="Jenis"><span class="badge <?= $r['jumlah'] > 0 ? 'b-lunas' : 'b-sebagian' ?>"><?= e($namaTipe[$r['tipe']]) ?></span><?= $r['batal'] ? ' <small class="mut">dibatalkan</small>' : '' ?></td>
     <td data-label="Keterangan"><?= e($r['keterangan']) ?><?php if ($r['pemasok'] !== ''): ?><br><small class="mut"><?= e($r['pemasok']) ?><?= $r['kategori'] !== '' ? ' · ' . e($r['kategori']) : '' ?></small><?php endif; ?></td>
     <td class="r" data-label="Jumlah"><b><?= ($r['jumlah'] > 0 ? '+' : '-') . rp(abs($r['jumlah'])) ?></b></td><td class="r" data-label="Saldo"><?= rp($r['saldo_setelah']) ?></td><td data-label="Petugas"><?= e($r['petugas'] ?? '-') ?></td>
-    <?php if ($bolehIsi): ?><td><?php if (!$r['batal'] && in_array($r['tipe'], ['isi', 'belanja'], true)): ?><form method="post" onsubmit="return confirm('Batalkan catatan ini? Saldo akan dikembalikan.')"><?= csrf_field() ?><input type="hidden" name="aksi" value="batal"><input type="hidden" name="id" value="<?= (int) $r['id'] ?>"><button class="btn ghost sm">Batalkan</button></form><?php endif; ?></td><?php endif; ?></tr>
+    <?php if ($bolehIsi): ?><td><?php if (!$r['batal'] && in_array($r['tipe'], ['isi', 'belanja'], true)): ?><form method="post" onsubmit="return confirm('Batalkan catatan ini? Saldo akan dikembalikan.')"><?= csrf_field() . once_field() ?><input type="hidden" name="aksi" value="batal"><input type="hidden" name="id" value="<?= (int) $r['id'] ?>"><button class="btn ghost sm">Batalkan</button></form><?php endif; ?></td><?php endif; ?></tr>
   <?php endforeach; ?>
   <?php if (!$rows): ?><tr><td colspan="7" class="empty">Belum ada catatan pada periode ini.</td></tr><?php endif; ?>
   </tbody></table></div></div>
 <?php if ($bolehIsi): ?><details class="card" style="margin-top:16px"><summary><b>Koreksi saldo (selisih hitung uang fisik)</b></summary>
-  <form method="post" class="form"><?= csrf_field() ?><input type="hidden" name="aksi" value="koreksi"><div class="grid g3">
+  <form method="post" class="form"><?= csrf_field() . once_field() ?><input type="hidden" name="aksi" value="koreksi"><div class="grid g3">
     <label>Arah <select name="arah"><option value="tambah">Saldo bertambah</option><option value="kurang">Saldo berkurang</option></select></label>
     <label>Jumlah (Rp) <input name="jumlah" inputmode="numeric" required></label><label>Alasan <input name="alasan" maxlength="180" required placeholder="mis. Selisih hitung fisik"></label></div>
   <div class="acts"><button class="btn ghost">Simpan koreksi</button></div></form></details><?php endif; ?>

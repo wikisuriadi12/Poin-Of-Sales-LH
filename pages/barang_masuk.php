@@ -9,6 +9,7 @@ $barang = Db::all('SELECT id, kode, nama, satuan, harga_beli FROM barang WHERE a
 $pemasokList = Gudang::daftarPemasok();
 if (is_post()) {
     csrf_check();
+    if (!once_check()) { flash('Formulir ini sudah diproses atau kedaluwarsa, tidak diproses dua kali. Cek riwayat barang masuk sebelum mengulang.', 'warn'); redirect('?p=barang_masuk'); }
     $lok = isset($lokasi[in_str('lok')]) ? in_str('lok') : array_key_first($lokasi);
     $ids = (array) ($_POST['barang_id'] ?? []); $qs = (array) ($_POST['qty'] ?? []); $hs = (array) ($_POST['harga_beli'] ?? []);
     $baris = []; $baru = [];
@@ -38,7 +39,7 @@ $terakhir = Gudang::laporanMasuk(date('Y-m-d', strtotime('-30 days')), date('Y-m
 ob_start(); ?>
 <div class="page-h"><div><h1>Barang Masuk</h1><p>Catat barang datang dari supplier. Stok langsung bertambah di lokasi yang dipilih.</p></div>
   <div class="acts"><a class="btn ghost" href="?p=laporan_pos&amp;tab=masuk">Laporan barang masuk</a><a class="btn ghost" href="?p=barang">Daftar barang</a></div></div>
-<form method="post" class="card form" id="bm"><?= csrf_field() ?>
+<form method="post" class="card form" id="bm"><?= csrf_field() . once_field() ?>
   <div class="grid g3">
     <label>Masuk ke <select name="lok"><?= options($lokasi, $unit) ?></select></label>
     <label>Nama supplier <input name="pemasok" list="dl-pemasok" required maxlength="100" value="<?= e(in_str('pemasok')) ?>" placeholder="Ketik atau pilih supplier"></label>

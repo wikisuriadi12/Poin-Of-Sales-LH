@@ -509,5 +509,18 @@ ok('adjustment tambah dan kurang stok', Gudang::stok($pb, Pos::GUDANG) === $a0 +
 throws('adjustment tanpa alasan ditolak', fn() => Gudang::adjust($pb, Pos::GUDANG, 1, '', null, null));
 throws('adjustment nol ditolak', fn() => Gudang::adjust($pb, Pos::GUDANG, 0, 'x', null, null));
 
+// Anti-dobel: token sekali pakai dan baris barang kembar
+$_SESSION = $_SESSION ?? [];
+preg_match('/value="([0-9a-f]+)"/', once_field(), $mt);
+$_POST['_once'] = $mt[1];
+ok('once: kiriman pertama diterima', once_check() === true);
+ok('once: kiriman kedua (dobel) ditolak', once_check() === false);
+$_POST = [];
+$d0 = Gudang::stok($pb, Pos::GUDANG);
+throws('masuk: barang sama di dua baris ditolak', fn() => Gudang::masukBanyak(Pos::GUDANG, 'Toko A', '', [[$pb, 10, 0], [$pb, 10, 0]], null, 'tunai'));
+ok('masuk: stok tidak berubah saat baris kembar ditolak', Gudang::stok($pb, Pos::GUDANG) === $d0);
+Gudang::masukBanyak(Pos::GUDANG, 'Toko A', '', [[$pb, 10, 0]], null, 'tunai');
+ok('masuk: input 10 menambah tepat 10', Gudang::stok($pb, Pos::GUDANG) === $d0 + 10);
+
 echo $fail === 0 ? "\nSemua uji lulus.\n" : "\n$fail uji GAGAL.\n";
 exit($fail === 0 ? 0 : 1);

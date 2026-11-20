@@ -43,6 +43,16 @@
     if (m && !window.confirm(m)) { e.preventDefault(); }
   });
 
+  // Cegah klik ganda: tombol kirim dikunci setelah formulir dikirim (mis. agar stok tidak masuk dua kali)
+  d.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (e.defaultPrevented || !f || (f.method || '').toLowerCase() !== 'post') { return; }
+    if (f.getAttribute('data-sent')) { e.preventDefault(); return; }
+    f.setAttribute('data-sent', '1');
+    setTimeout(function () { Array.prototype.forEach.call(f.querySelectorAll('button:not([type=button]),input[type=submit]'), function (b) { b.disabled = true; }); }, 0);
+    setTimeout(function () { f.removeAttribute('data-sent'); Array.prototype.forEach.call(f.querySelectorAll('button,input[type=submit]'), function (b) { b.disabled = false; }); }, 8000);
+  });
+
   // Toast otomatis hilang
   setTimeout(function () {
     d.querySelectorAll('.toast:not(.err)').forEach(function (t) { t.style.transition = 'opacity .4s'; t.style.opacity = '0'; setTimeout(function () { t.remove(); }, 450); });

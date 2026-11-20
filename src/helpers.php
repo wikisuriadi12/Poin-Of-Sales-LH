@@ -44,6 +44,22 @@ function csrf_field(): string
     return '<input type="hidden" name="_csrf" value="' . e(csrf_token()) . '">';
 }
 
+/** Token sekali pakai: mencegah formulir yang sama (klik ganda / kirim ulang) diproses dua kali, mis. stok masuk dobel. */
+function once_field(): string
+{
+    $t = bin2hex(random_bytes(12));
+    $_SESSION['once'] = array_slice(($_SESSION['once'] ?? []) + [$t => time()], -200, null, true);
+    return '<input type="hidden" name="_once" value="' . $t . '">';
+}
+
+function once_check(): bool
+{
+    $t = $_POST['_once'] ?? '';
+    if (!is_string($t) || $t === '' || !isset($_SESSION['once'][$t])) { return false; }
+    unset($_SESSION['once'][$t]);
+    return true;
+}
+
 function csrf_check(): void
 {
     $t = $_POST['_csrf'] ?? '';

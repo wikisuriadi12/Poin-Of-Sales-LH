@@ -237,6 +237,8 @@ final class Gudang
             if ((int) $b[0] <= 0 || !self::find((int) $b[0])) { throw new InvalidArgumentException('Baris ' . ($i + 1) . ': pilih barang.'); }
             if ((int) $b[1] < 1 || (int) $b[1] > 1000000) { throw new InvalidArgumentException('Baris ' . ($i + 1) . ': jumlah harus 1 atau lebih.'); }
         }
+        $dobel = array_count_values(array_map(static fn($b) => (int) $b[0], $baris));
+        foreach ($baris as $i => $b) { if ($dobel[(int) $b[0]] > 1) { throw new InvalidArgumentException('Baris ' . ($i + 1) . ': barang yang sama dipilih di lebih dari satu baris. Gabungkan jadi satu baris agar jumlah tidak dobel.'); } }
         if ($jenis !== 'tunai') {
             foreach ($baris as $i => $b) { if ((int) $b[2] < 1) { throw new InvalidArgumentException('Baris ' . ($i + 1) . ': harga beli wajib diisi untuk pembelian ' . ($jenis === 'petty' ? 'dari Petty Cash' : ($jenis === 'hutang' ? 'hutang' : 'konsinyasi (harga setor ke supplier)')) . '.'); } }
         }
